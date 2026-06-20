@@ -34,7 +34,7 @@ export default function App() {
   }, []);
 
   const setReady = useCallback((v) => socket.emit('set-ready', { ready: v }), []);
-  const pickToken = useCallback((token) => socket.emit('pick-token', { token }), []);
+  const pickToken = useCallback((token) => socket.emit('take-token', { token }), []);
   const releaseToken = useCallback((token) => socket.emit('release-token', { token }), []);
   const sendChat = useCallback((text) => socket.emit('chat', { text }), []);
   const restart = useCallback(() => socket.emit('restart'), []);

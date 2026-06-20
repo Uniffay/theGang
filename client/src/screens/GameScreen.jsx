@@ -189,46 +189,46 @@ export default function GameScreen({ gameState, playerName, roomId, onPickToken,
     }
 
     function onUp(e) {
-      setDragState(prev => {
-        if (!prev) return null;
-        const rect = gameAreaRef.current?.getBoundingClientRect();
-        if (!rect) return null;
+      const prev = dragState;
+      if (!prev) return;
 
-        const pxX = e.clientX - rect.left;
-        const pxY = e.clientY - rect.top;
-        const pctX = +(pxX / rect.width  * 100).toFixed(1);
-        const pctY = +(pxY / rect.height * 100).toFixed(1);
+      const rect = gameAreaRef.current?.getBoundingClientRect();
+      if (!rect) { setDragState(null); return; }
 
-        // Find hit zone (in px)
-        let hitPlayer = null;
-        for (let i = 0; i < ordered.length; i++) {
-          const [zx, zy] = zonePos(positions[i]);
-          const zpxX = zx / 100 * rect.width;
-          const zpxY = zy / 100 * rect.height;
-          if (Math.abs(pxX - zpxX) < 52 && Math.abs(pxY - zpxY) < 42) {
-            hitPlayer = ordered[i];
-            break;
-          }
+      const pxX = e.clientX - rect.left;
+      const pxY = e.clientY - rect.top;
+      const pctX = +(pxX / rect.width  * 100).toFixed(1);
+      const pctY = +(pxY / rect.height * 100).toFixed(1);
+
+      // Find hit zone (in px)
+      let hitPlayer = null;
+      for (let i = 0; i < ordered.length; i++) {
+        const [zx, zy] = zonePos(positions[i]);
+        const zpxX = zx / 100 * rect.width;
+        const zpxY = zy / 100 * rect.height;
+        if (Math.abs(pxX - zpxX) < 52 && Math.abs(pxY - zpxY) < 42) {
+          hitPlayer = ordered[i];
+          break;
         }
+      }
 
-        if (hitPlayer && hitPlayer.id === myId) {
-          // Drop in MY zone → take token
-          onPickToken(prev.token);
-          const [zx, zy] = zonePos(positions[0]);
-          setLocalPos(p => ({ ...p, [prev.token]: { x: zx, y: zy } }));
-        } else {
-          // Drop on table or other zone → update local pos, maybe release
-          setLocalPos(p => ({ ...p, [prev.token]: { x: pctX, y: pctY } }));
-          socket.emit('token-moved', { token: prev.token, x: pctX, y: pctY });
+      if (hitPlayer && hitPlayer.id === myId) {
+        // Drop in MY zone → take token
+        onPickToken(prev.token);
+        const [zx, zy] = zonePos(positions[0]);
+        setLocalPos(p => ({ ...p, [prev.token]: { x: zx, y: zy } }));
+      } else {
+        // Drop on table or other zone → update local pos, maybe release
+        setLocalPos(p => ({ ...p, [prev.token]: { x: pctX, y: pctY } }));
+        socket.emit('token-moved', { token: prev.token, x: pctX, y: pctY });
 
-          // If token was in a zone, release it
-          if (prev.wasInZoneOf) {
-            onReleaseToken(prev.token);
-          }
+        // If token was in a zone, release it
+        if (prev.wasInZoneOf) {
+          onReleaseToken(prev.token);
         }
+      }
 
-        return null;
-      });
+      setDragState(null);
     }
 
     document.addEventListener('mousemove', onMove);
