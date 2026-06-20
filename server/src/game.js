@@ -45,7 +45,7 @@ class Game {
   // ── Lobby ──────────────────────────────────────────────
 
   addPlayer(id, name) {
-    if (this.n >= 5 || this.state !== 'lobby') return false;
+    if (this.n >= 8 || this.state !== 'lobby') return false;
     if (this.players.find(p => p.id === id)) return false;
     this.players.push({ id, name, ready: false });
     return true;

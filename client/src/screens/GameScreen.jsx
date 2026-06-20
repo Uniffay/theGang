@@ -6,12 +6,16 @@ const PHASE_LABEL = { preflop: 'Préflop', flop: 'Flop', turn: 'Turn', river: 'R
 const PHASE_ORDER = ['preflop', 'flop', 'turn', 'river'];
 const COLOR_CLASS = { white: 'tok-white', yellow: 'tok-yellow', orange: 'tok-orange', red: 'tok-red' };
 
-// [left%, top%] – index 0 = me (always bottom-center)
+// [left%, top%] – index 0 = me (always bottom-center).
+// Computed on ellipse: center (50,46), semi-axes (38,36), clockwise from bottom.
 const SEAT_POS = {
-  2: [[50, 82], [50, 4]],
-  3: [[50, 82], [10, 18], [90, 18]],
-  4: [[50, 82], [4,  48], [50, 4],  [96, 48]],
-  5: [[50, 82], [8,  66], [10, 10], [90, 10], [92, 66]],
+  2: [[50, 82], [50, 10]],
+  3: [[50, 82], [17, 28], [83, 28]],
+  4: [[50, 82], [12, 46], [50, 10], [88, 46]],
+  5: [[50, 82], [14, 57], [28, 17], [72, 17], [86, 57]],
+  6: [[50, 82], [17, 64], [17, 28], [50, 10], [83, 28], [83, 64]],
+  7: [[50, 82], [20, 69], [13, 38], [34, 14], [67, 14], [87, 38], [80, 69]],
+  8: [[50, 82], [23, 72], [12, 46], [23, 21], [50, 10], [77, 21], [88, 46], [77, 72]],
 };
 
 // ── Token (draggable) ──────────────────────────────────────────────────────
