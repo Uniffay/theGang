@@ -31,7 +31,7 @@ class Game {
     this.community = [];  // full 5 community cards (revealed progressively)
     this.phaseIndex = 0;
     this.tokenPool = [];          // tokens not held by anyone
-    this.playerZones = {};        // playerId -> token[] ([] = empty)
+    this.playerZones = {};        // playerId -> token | null
     this.completedPhases = [];    // [{ phase, color, zones }]
     this.revealOrder = null;      // set after river validation
     this.chat = [];
@@ -92,7 +92,7 @@ class Game {
   _openPhase() {
     this.tokenPool = Array.from({ length: this.n }, (_, i) => i + 1);
     this.playerZones = {};
-    this.players.forEach(p => { this.playerZones[p.id] = []; });
+    this.players.forEach(p => { this.playerZones[p.id] = null; });
     this.lastEvent = { type: 'phase-open', phase: this.phase, color: this.color };
   }
 
@@ -101,11 +101,7 @@ class Game {
   }
 
   _validatePhase() {
-    // Flatten arrays to single canonical token (first element)
-    const zones = {};
-    for (const [pid, tokens] of Object.entries(this.playerZones)) {
-      zones[pid] = tokens[0] ?? null;
-    }
+    const zones = { ...this.playerZones };
     this.completedPhases.push({ phase: this.phase, color: this.color, zones });
     this.lastEvent = { type: 'phase-complete', phase: this.phase, color: this.color, zones };
 
@@ -122,26 +118,30 @@ class Game {
     return this.placeToken(playerId, playerId, token);
   }
 
-  // Place a token in any player's zone — allows multiple tokens per zone
+  // Place a token in a player's zone — replaces their previous claim
   placeToken(requestingPlayerId, targetPlayerId, token) {
     if (this.state !== 'playing') return { error: 'Pas en cours de jeu.' };
     if (token < 1 || token > this.n) return { error: 'Jeton invalide.' };
     if (!Object.prototype.hasOwnProperty.call(this.playerZones, targetPlayerId)) return { error: 'Joueur invalide.' };
 
-    // Remove token from wherever it currently is
+    // Remove token from pool or any zone
     this.tokenPool = this.tokenPool.filter(t => t !== token);
     for (const pid of Object.keys(this.playerZones)) {
-      this.playerZones[pid] = this.playerZones[pid].filter(t => t !== token);
+      if (this.playerZones[pid] === token) this.playerZones[pid] = null;
     }
 
-    // Add to target zone
-    this.playerZones[targetPlayerId].push(token);
-    this.playerZones[targetPlayerId].sort((a, b) => a - b);
+    // Return target's current token to pool
+    const existing = this.playerZones[targetPlayerId];
+    if (existing !== null) {
+      this.tokenPool.push(existing);
+      this.tokenPool.sort((a, b) => a - b);
+    }
+
+    this.playerZones[targetPlayerId] = token;
     this.lastEvent = { type: 'token-placed', requestingPlayerId, targetPlayerId, token };
 
-    // Validate when each zone has exactly 1 token
-    const allValid = Object.values(this.playerZones).every(arr => arr.length === 1);
-    if (allValid) return this._validatePhase();
+    const allFilled = Object.values(this.playerZones).every(t => t !== null);
+    if (allFilled) return this._validatePhase();
 
     return { ok: true };
   }
@@ -176,7 +176,7 @@ class Game {
 
   releaseToken(token) {
     for (const pid of Object.keys(this.playerZones)) {
-      this.playerZones[pid] = this.playerZones[pid].filter(t => t !== token);
+      if (this.playerZones[pid] === token) this.playerZones[pid] = null;
     }
     if (!this.tokenPool.includes(token)) {
       this.tokenPool.push(token);

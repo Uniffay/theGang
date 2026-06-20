@@ -241,8 +241,8 @@ export default function GameScreen({ gameState, playerName, roomId, onPickToken,
     if (isOver) return;
     e.preventDefault();
     let wasInZoneOf = null;
-    for (const [pid, tokens] of Object.entries(playerZones ?? {})) {
-      if ((Array.isArray(tokens) ? tokens : []).includes(token)) { wasInZoneOf = pid; break; }
+    for (const [pid, t] of Object.entries(playerZones ?? {})) {
+      if (t === token) { wasInZoneOf = pid; break; }
     }
     // Release own zone immediately so server doesn't see "toggle" on re-drop
     if (wasInZoneOf === myId) {
@@ -319,8 +319,7 @@ export default function GameScreen({ gameState, playerName, roomId, onPickToken,
         {/* ── Validation zones ── */}
         {!isOver && ordered.map((p, i) => {
           const [zx, zy] = zonePos(positions[i]);
-          const zoneTokens = Array.isArray(playerZones?.[p.id]) ? playerZones[p.id] : [];
-          const isExactlyOne = zoneTokens.length === 1;
+          const isExactlyOne = playerZones?.[p.id] != null;
           const isMe = p.id === myId;
           return (
             <div
