@@ -1,15 +1,16 @@
 const { rankPlayers, handName } = require('./poker');
 
+const PHASES = ['preflop', 'flop', 'turn', 'river'];
+const PHASE_COLORS = { preflop: 'white', flop: 'yellow', turn: 'orange', river: 'red' };
+const COMMUNITY_COUNT = { preflop: 0, flop: 3, turn: 4, river: 5 };
+
 const SUITS = ['♠', '♥', '♦', '♣'];
 const VALUES = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
-const STAGES = ['preflop', 'flop', 'turn', 'river'];
-const COMMUNITY_COUNT = { preflop: 0, flop: 3, turn: 4, river: 5 };
-const LIVES = 3;
 
 function createDeck() {
-  const deck = [];
-  for (const suit of SUITS) for (const value of VALUES) deck.push({ value, suit });
-  return deck;
+  const d = [];
+  for (const suit of SUITS) for (const value of VALUES) d.push({ value, suit });
+  return d;
 }
 
 function shuffle(arr) {
@@ -24,21 +25,24 @@ function shuffle(arr) {
 class Game {
   constructor(roomId) {
     this.id = roomId;
-    this.players = [];
-    this.state = 'lobby';
+    this.players = [];   // [{ id, name, ready }]
+    this.state = 'lobby'; // lobby | playing | reveal | won | lost
     this.hands = {};
-    this.deck = [];
-    this.community = [];
-    this.stageIndex = 0;
-    this.pendingTokens = {};   // playerId -> token chosen (null = not chosen)
-    this.lives = LIVES;
-    this.lastEvent = null;
-    this.finalRanks = null;
+    this.community = [];  // full 5 community cards (revealed progressively)
+    this.phaseIndex = 0;
+    this.tokenPool = [];          // tokens not held by anyone
+    this.playerZones = {};        // playerId -> token (null = empty)
+    this.completedPhases = [];    // [{ phase, color, zones }]
+    this.revealOrder = null;      // set after river validation
     this.chat = [];
+    this.lastEvent = null;
   }
 
-  get stage() { return STAGES[this.stageIndex]; }
+  get phase() { return PHASES[this.phaseIndex]; }
+  get color() { return PHASE_COLORS[this.phase]; }
   get n() { return this.players.length; }
+
+  // ── Lobby ──────────────────────────────────────────────
 
   addPlayer(id, name) {
     if (this.n >= 5 || this.state !== 'lobby') return false;
@@ -50,6 +54,7 @@ class Game {
   removePlayer(id) {
     this.players = this.players.filter(p => p.id !== id);
     delete this.hands[id];
+    delete this.playerZones[id];
   }
 
   setReady(id, value) {
@@ -57,122 +62,145 @@ class Game {
     if (p) p.ready = value;
   }
 
-  allReady() {
-    return this.n >= 2 && this.players.every(p => p.ready);
-  }
+  allReady() { return this.n >= 2 && this.players.every(p => p.ready); }
+
+  // ── Start ───────────────────────────────────────────────
 
   start() {
     if (this.n < 2) return { error: 'Il faut au moins 2 joueurs.' };
     this.state = 'playing';
-    this.stageIndex = 0;
-    this.lives = LIVES;
-    this.finalRanks = null;
-    this.lastEvent = null;
+    this.phaseIndex = 0;
+    this.completedPhases = [];
+    this.revealOrder = null;
     this.chat = [];
+    this.lastEvent = null;
 
     const deck = shuffle(createDeck());
-    this.community = deck.slice(0, 5); // 5 community cards (revealed progressively)
+    this.community = deck.slice(0, 5);
     let offset = 5;
     this.hands = {};
     for (const p of this.players) {
       this.hands[p.id] = [deck[offset++], deck[offset++]];
     }
-    this.deck = deck;
-    this._openStage();
+
+    this._openPhase();
     return null;
   }
 
-  _openStage() {
-    this.pendingTokens = {};
-    this.players.forEach(p => { this.pendingTokens[p.id] = null; });
-    this.lastEvent = { type: 'stage-open', stage: this.stage };
+  // ── Phase management ────────────────────────────────────
+
+  _openPhase() {
+    this.tokenPool = Array.from({ length: this.n }, (_, i) => i + 1);
+    this.playerZones = {};
+    this.players.forEach(p => { this.playerZones[p.id] = null; });
+    this.lastEvent = { type: 'phase-open', phase: this.phase, color: this.color };
   }
 
   visibleCommunity() {
-    return this.community.slice(0, COMMUNITY_COUNT[this.stage]);
+    return this.community.slice(0, COMMUNITY_COUNT[this.phase]);
   }
 
-  pickToken(playerId, token) {
-    if (this.state !== 'playing') return { error: 'Partie non active.' };
-    if (!this.pendingTokens.hasOwnProperty(playerId)) return { error: 'Joueur introuvable.' };
-    if (this.pendingTokens[playerId] !== null) return { error: 'Tu as déjà choisi.' };
-    if (token < 1 || token > this.n) return { error: `Jeton invalide (1–${this.n}).` };
+  _validatePhase() {
+    this.completedPhases.push({
+      phase: this.phase,
+      color: this.color,
+      zones: { ...this.playerZones },
+    });
 
-    this.pendingTokens[playerId] = token;
-
-    // Check if everyone has picked
-    const allPicked = Object.values(this.pendingTokens).every(t => t !== null);
-    if (!allPicked) return { waiting: true };
-
-    return this._resolveStage();
-  }
-
-  _resolveStage() {
-    const choices = this.pendingTokens;
-    const tokens = Object.values(choices);
-    const unique = new Set(tokens);
-    const hasConflict = unique.size < tokens.length;
-
-    if (hasConflict) {
-      this.lives--;
-      this.lastEvent = {
-        type: 'conflict',
-        choices: { ...choices },
-        stage: this.stage,
-      };
-
-      if (this.lives <= 0) {
-        this.state = 'lost';
-        this.lastEvent.lost = true;
-        return { conflict: true, lost: true };
-      }
-
-      // Redo this stage
-      this._openStage();
-      return { conflict: true };
-    }
-
-    // No conflict — check if it's the river
-    if (this.stage === 'river') {
-      return this._finalCheck(choices);
-    }
-
-    // Advance to next stage
     this.lastEvent = {
-      type: 'stage-clear',
-      stage: this.stage,
-      choices: { ...choices },
+      type: 'phase-complete',
+      phase: this.phase,
+      color: this.color,
+      zones: { ...this.playerZones },
     };
-    this.stageIndex++;
-    this._openStage();
+
+    if (this.phase === 'river') return this._reveal();
+
+    this.phaseIndex++;
+    this._openPhase();
+    return { phaseComplete: true };
+  }
+
+  // ── Token interaction ────────────────────────────────────
+
+  // Take a token (from pool or from another player).
+  // Clicking your own token drops it back to pool.
+  takeToken(playerId, token) {
+    if (this.state !== 'playing') return { error: 'Pas en cours de jeu.' };
+    if (token < 1 || token > this.n) return { error: 'Jeton invalide.' };
+
+    const inPool = this.tokenPool.includes(token);
+    const fromPlayerId = Object.keys(this.playerZones).find(pid => this.playerZones[pid] === token) ?? null;
+
+    // Clicking own token → drop back to pool
+    if (fromPlayerId === playerId) {
+      this.playerZones[playerId] = null;
+      this.tokenPool.push(token);
+      this.tokenPool.sort((a, b) => a - b);
+      this.lastEvent = { type: 'token-dropped', playerId };
+      return { ok: true };
+    }
+
+    if (!inPool && !fromPlayerId) return { error: 'Jeton introuvable.' };
+
+    // Put player's current token back to pool if they have one
+    const myToken = this.playerZones[playerId] ?? null;
+    if (myToken !== null) {
+      this.tokenPool.push(myToken);
+      this.tokenPool.sort((a, b) => a - b);
+      this.playerZones[playerId] = null;
+    }
+
+    // Remove token from origin
+    if (inPool) {
+      this.tokenPool = this.tokenPool.filter(t => t !== token);
+    } else if (fromPlayerId) {
+      this.playerZones[fromPlayerId] = null;
+    }
+
+    this.playerZones[playerId] = token;
+    this.lastEvent = { type: 'token-taken', playerId, fromPlayerId, token };
+
+    // Auto-validate when every zone has exactly one token
+    const allFilled = Object.values(this.playerZones).every(t => t !== null);
+    if (allFilled) return this._validatePhase();
+
     return { ok: true };
   }
 
-  _finalCheck(choices) {
+  // ── Reveal ───────────────────────────────────────────────
+
+  _reveal() {
     const playerIds = this.players.map(p => p.id);
-    const ranks = rankPlayers(this.hands, this.community, playerIds);
-    this.finalRanks = ranks;
+    const riverZones = this.completedPhases.find(cp => cp.phase === 'river')?.zones ?? {};
+    const actualRanks = rankPlayers(this.hands, this.community, playerIds);
 
-    // Check if every player's token matches their actual rank
-    const correct = playerIds.every(id => choices[id] === ranks[id]);
+    // Sort by river token (1 = reveals first = claims to be weakest)
+    this.revealOrder = this.players
+      .map(p => ({
+        id: p.id,
+        name: p.name,
+        token: riverZones[p.id],
+        hand: this.hands[p.id],
+        actualRank: actualRanks[p.id],
+        handName: handName(this.hands[p.id], this.community),
+        correct: riverZones[p.id] === actualRanks[p.id],
+      }))
+      .sort((a, b) => a.token - b.token);
 
-    this.lastEvent = {
-      type: 'final',
-      choices: { ...choices },
-      ranks,
-      handNames: Object.fromEntries(playerIds.map(id => [id, handName(this.hands[id], this.community)])),
-      correct,
-    };
-
-    this.state = correct ? 'won' : 'lost';
-    return { final: true, correct };
+    const allCorrect = this.revealOrder.every(r => r.correct);
+    this.state = allCorrect ? 'won' : 'lost';
+    this.lastEvent = { type: 'reveal', correct: allCorrect };
+    return { reveal: true, correct: allCorrect };
   }
+
+  // ── Chat ─────────────────────────────────────────────────
 
   addChat(playerId, text) {
     const name = this.players.find(p => p.id === playerId)?.name ?? '?';
     const msg = { name, text, ts: Date.now() };
     this.chat.push(msg);
-    if (this.chat.length > 50) this.chat.shift();
+    if (this.chat.length > 60) this.chat.shift();
     return msg;
   }
 
@@ -180,36 +208,29 @@ class Game {
     this.players.forEach(p => { p.ready = false; });
     this.state = 'lobby';
     this.hands = {};
-    this.finalRanks = null;
+    this.completedPhases = [];
+    this.revealOrder = null;
     this.lastEvent = null;
     this.chat = [];
   }
 
+  // ── Public state (per player) ────────────────────────────
+
   publicState(forPlayerId) {
-    const comm = this.visibleCommunity();
-    const myHand = this.hands[forPlayerId] ?? [];
-    const revealHands = this.state === 'won' || this.state === 'lost';
-
-    const otherPlayers = this.players
-      .filter(p => p.id !== forPlayerId)
-      .map(p => ({
-        id: p.id,
-        name: p.name,
-        hasPicked: this.pendingTokens[p.id] !== null,
-        hand: revealHands ? this.hands[p.id] : null,
-      }));
-
+    const isOver = this.state === 'won' || this.state === 'lost';
     return {
       state: this.state,
-      stage: this.stage,
-      stageIndex: this.stageIndex,
+      phase: this.phase,
+      phaseIndex: this.phaseIndex,
+      color: this.color,
       players: this.players,
-      myHand,
-      community: comm,
-      lives: this.lives,
+      myHand: this.hands[forPlayerId] ?? [],
+      community: this.visibleCommunity(),
+      tokenPool: [...this.tokenPool],
+      playerZones: { ...this.playerZones },
+      completedPhases: this.completedPhases,
+      revealOrder: isOver ? this.revealOrder : null,
       n: this.n,
-      myToken: this.pendingTokens[forPlayerId] ?? null,
-      otherPlayers,
       lastEvent: this.lastEvent,
       chat: this.chat,
     };
@@ -217,12 +238,10 @@ class Game {
 }
 
 const rooms = new Map();
-
 function getOrCreateRoom(id) {
   if (!rooms.has(id)) rooms.set(id, new Game(id));
   return rooms.get(id);
 }
-
 function deleteRoom(id) { rooms.delete(id); }
 
 module.exports = { getOrCreateRoom, deleteRoom };

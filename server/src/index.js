@@ -9,9 +9,7 @@ const { getOrCreateRoom, deleteRoom } = require('./game');
 const app = express();
 const server = http.createServer(app);
 
-const io = new Server(server, {
-  cors: { origin: '*', methods: ['GET', 'POST'] },
-});
+const io = new Server(server, { cors: { origin: '*', methods: ['GET', 'POST'] } });
 
 app.use(cors());
 app.use(express.json());
@@ -20,8 +18,7 @@ const clientDist = path.join(__dirname, '../../client/dist');
 app.use(express.static(clientDist));
 
 app.get('/api/room/new', (_, res) => {
-  const roomId = uuidv4().slice(0, 6).toUpperCase();
-  res.json({ roomId });
+  res.json({ roomId: uuidv4().slice(0, 6).toUpperCase() });
 });
 
 app.get('*', (_, res) => res.sendFile(path.join(clientDist, 'index.html')));
@@ -46,7 +43,6 @@ io.on('connection', (socket) => {
     const room = getOrCreateRoom(currentRoom);
     room.setReady(socket.id, ready);
     broadcastRoom(currentRoom);
-
     if (room.allReady()) {
       const err = room.start();
       if (err) { socket.emit('error', err); return; }
@@ -54,10 +50,10 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('pick-token', ({ token }) => {
+  socket.on('take-token', ({ token }) => {
     if (!currentRoom) return;
     const room = getOrCreateRoom(currentRoom);
-    const result = room.pickToken(socket.id, token);
+    const result = room.takeToken(socket.id, token);
     if (result.error) { socket.emit('error', result); return; }
     broadcastAll(currentRoom);
   });
@@ -71,8 +67,7 @@ io.on('connection', (socket) => {
 
   socket.on('restart', () => {
     if (!currentRoom) return;
-    const room = getOrCreateRoom(currentRoom);
-    room.reset();
+    getOrCreateRoom(currentRoom).reset();
     broadcastRoom(currentRoom);
   });
 
