@@ -31,7 +31,7 @@ class Game {
     this.community = [];  // full 5 community cards (revealed progressively)
     this.phaseIndex = 0;
     this.tokenPool = [];          // tokens not held by anyone
-    this.playerZones = {};        // playerId -> token (null = empty)
+    this.playerZones = {};        // playerId -> token[] ([] = empty)
     this.completedPhases = [];    // [{ phase, color, zones }]
     this.revealOrder = null;      // set after river validation
     this.chat = [];
@@ -92,7 +92,7 @@ class Game {
   _openPhase() {
     this.tokenPool = Array.from({ length: this.n }, (_, i) => i + 1);
     this.playerZones = {};
-    this.players.forEach(p => { this.playerZones[p.id] = null; });
+    this.players.forEach(p => { this.playerZones[p.id] = []; });
     this.lastEvent = { type: 'phase-open', phase: this.phase, color: this.color };
   }
 
@@ -101,18 +101,13 @@ class Game {
   }
 
   _validatePhase() {
-    this.completedPhases.push({
-      phase: this.phase,
-      color: this.color,
-      zones: { ...this.playerZones },
-    });
-
-    this.lastEvent = {
-      type: 'phase-complete',
-      phase: this.phase,
-      color: this.color,
-      zones: { ...this.playerZones },
-    };
+    // Flatten arrays to single canonical token (first element)
+    const zones = {};
+    for (const [pid, tokens] of Object.entries(this.playerZones)) {
+      zones[pid] = tokens[0] ?? null;
+    }
+    this.completedPhases.push({ phase: this.phase, color: this.color, zones });
+    this.lastEvent = { type: 'phase-complete', phase: this.phase, color: this.color, zones };
 
     if (this.phase === 'river') return this._reveal();
 
@@ -123,82 +118,30 @@ class Game {
 
   // ── Token interaction ────────────────────────────────────
 
-  // Take a token (from pool or from another player).
-  // Clicking your own token drops it back to pool.
   takeToken(playerId, token) {
-    if (this.state !== 'playing') return { error: 'Pas en cours de jeu.' };
-    if (token < 1 || token > this.n) return { error: 'Jeton invalide.' };
-
-    const inPool = this.tokenPool.includes(token);
-    const fromPlayerId = Object.keys(this.playerZones).find(pid => this.playerZones[pid] === token) ?? null;
-
-    // Clicking own token → drop back to pool
-    if (fromPlayerId === playerId) {
-      this.playerZones[playerId] = null;
-      this.tokenPool.push(token);
-      this.tokenPool.sort((a, b) => a - b);
-      this.lastEvent = { type: 'token-dropped', playerId };
-      return { ok: true };
-    }
-
-    if (!inPool && !fromPlayerId) return { error: 'Jeton introuvable.' };
-
-    // Put player's current token back to pool if they have one
-    const myToken = this.playerZones[playerId] ?? null;
-    if (myToken !== null) {
-      this.tokenPool.push(myToken);
-      this.tokenPool.sort((a, b) => a - b);
-      this.playerZones[playerId] = null;
-    }
-
-    // Remove token from origin
-    if (inPool) {
-      this.tokenPool = this.tokenPool.filter(t => t !== token);
-    } else if (fromPlayerId) {
-      this.playerZones[fromPlayerId] = null;
-    }
-
-    this.playerZones[playerId] = token;
-    this.lastEvent = { type: 'token-taken', playerId, fromPlayerId, token };
-
-    // Auto-validate when every zone has exactly one token
-    const allFilled = Object.values(this.playerZones).every(t => t !== null);
-    if (allFilled) return this._validatePhase();
-
-    return { ok: true };
+    return this.placeToken(playerId, playerId, token);
   }
 
-  // Place a token in any player's zone (cooperative drag-to-any-zone)
+  // Place a token in any player's zone — allows multiple tokens per zone
   placeToken(requestingPlayerId, targetPlayerId, token) {
     if (this.state !== 'playing') return { error: 'Pas en cours de jeu.' };
     if (token < 1 || token > this.n) return { error: 'Jeton invalide.' };
     if (!Object.prototype.hasOwnProperty.call(this.playerZones, targetPlayerId)) return { error: 'Joueur invalide.' };
 
-    const inPool = this.tokenPool.includes(token);
-    const fromPlayerId = Object.keys(this.playerZones).find(pid => this.playerZones[pid] === token) ?? null;
-
-    if (!inPool && !fromPlayerId) return { error: 'Jeton introuvable.' };
-    if (fromPlayerId === targetPlayerId) return { ok: true }; // already there
-
-    // Remove from current location
-    if (fromPlayerId) {
-      this.playerZones[fromPlayerId] = null;
-    } else {
-      this.tokenPool = this.tokenPool.filter(t => t !== token);
+    // Remove token from wherever it currently is
+    this.tokenPool = this.tokenPool.filter(t => t !== token);
+    for (const pid of Object.keys(this.playerZones)) {
+      this.playerZones[pid] = this.playerZones[pid].filter(t => t !== token);
     }
 
-    // Return target's existing token to pool
-    const existing = this.playerZones[targetPlayerId];
-    if (existing !== null) {
-      this.tokenPool.push(existing);
-      this.tokenPool.sort((a, b) => a - b);
-    }
-
-    this.playerZones[targetPlayerId] = token;
+    // Add to target zone
+    this.playerZones[targetPlayerId].push(token);
+    this.playerZones[targetPlayerId].sort((a, b) => a - b);
     this.lastEvent = { type: 'token-placed', requestingPlayerId, targetPlayerId, token };
 
-    const allFilled = Object.values(this.playerZones).every(t => t !== null);
-    if (allFilled) return this._validatePhase();
+    // Validate when each zone has exactly 1 token
+    const allValid = Object.values(this.playerZones).every(arr => arr.length === 1);
+    if (allValid) return this._validatePhase();
 
     return { ok: true };
   }
@@ -231,19 +174,15 @@ class Game {
 
   // ── Chat ─────────────────────────────────────────────────
 
-  // Remove token from whatever zone it's in, put back to pool
   releaseToken(token) {
     for (const pid of Object.keys(this.playerZones)) {
-      if (this.playerZones[pid] === token) {
-        this.playerZones[pid] = null;
-        if (!this.tokenPool.includes(token)) {
-          this.tokenPool.push(token);
-          this.tokenPool.sort((a, b) => a - b);
-        }
-        this.lastEvent = { type: 'token-released', token };
-        return { ok: true };
-      }
+      this.playerZones[pid] = this.playerZones[pid].filter(t => t !== token);
     }
+    if (!this.tokenPool.includes(token)) {
+      this.tokenPool.push(token);
+      this.tokenPool.sort((a, b) => a - b);
+    }
+    this.lastEvent = { type: 'token-released', token };
     return { ok: true };
   }
 

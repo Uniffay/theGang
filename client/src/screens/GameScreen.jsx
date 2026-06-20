@@ -23,9 +23,9 @@ const SEAT_POS = {
   8: [[50,82],[23,72],[12,46],[23,21],[50,10],[77,21],[88,46],[77,72]],
 };
 
-// Zone is 30% of the way from seat toward table center (50, 46)
+// Zone is 20% of the way from seat toward table center (50, 46)
 function zonePos([sx, sy]) {
-  return [+(sx + 0.30 * (50 - sx)).toFixed(1), +(sy + 0.30 * (46 - sy)).toFixed(1)];
+  return [+(sx + 0.20 * (50 - sx)).toFixed(1), +(sy + 0.20 * (46 - sy)).toFixed(1)];
 }
 
 // Initial token positions: horizontal row, centered on table
@@ -206,18 +206,17 @@ export default function GameScreen({ gameState, playerName, roomId, onPickToken,
         const [zx, zy] = zonePos(positions[i]);
         const zpxX = zx / 100 * rect.width;
         const zpxY = zy / 100 * rect.height;
-        if (Math.abs(pxX - zpxX) < 52 && Math.abs(pxY - zpxY) < 42) {
+        if (Math.abs(pxX - zpxX) < 62 && Math.abs(pxY - zpxY) < 50) {
           hitPlayer = ordered[i];
           break;
         }
       }
 
       if (hitPlayer) {
-        // Drop on any zone → place token there
+        // Drop on any zone → place token there, keep it at dropped position
         onPlaceToken(prev.token, hitPlayer.id);
-        const hIdx = ordered.findIndex(p => p.id === hitPlayer.id);
-        const [zx, zy] = zonePos(positions[hIdx >= 0 ? hIdx : 0]);
-        setLocalPos(p => ({ ...p, [prev.token]: { x: zx, y: zy } }));
+        setLocalPos(p => ({ ...p, [prev.token]: { x: pctX, y: pctY } }));
+        socket.emit('token-moved', { token: prev.token, x: pctX, y: pctY });
       } else {
         // Drop on table → update local pos
         setLocalPos(p => ({ ...p, [prev.token]: { x: pctX, y: pctY } }));
@@ -243,8 +242,8 @@ export default function GameScreen({ gameState, playerName, roomId, onPickToken,
     if (isOver) return;
     e.preventDefault();
     let wasInZoneOf = null;
-    for (const [pid, t] of Object.entries(playerZones ?? {})) {
-      if (t === token) { wasInZoneOf = pid; break; }
+    for (const [pid, tokens] of Object.entries(playerZones ?? {})) {
+      if ((Array.isArray(tokens) ? tokens : []).includes(token)) { wasInZoneOf = pid; break; }
     }
     // Release own zone immediately so server doesn't see "toggle" on re-drop
     if (wasInZoneOf === myId) {
@@ -253,13 +252,8 @@ export default function GameScreen({ gameState, playerName, roomId, onPickToken,
     setDragState({ token, curX: e.clientX, curY: e.clientY, wasInZoneOf });
   }
 
-  // Token rendering position: zone if assigned, else free pos
+  // Token rendering position: always use free position (no zone snapping)
   function getTokenPos(token) {
-    for (let i = 0; i < ordered.length; i++) {
-      if (playerZones?.[ordered[i].id] === token) {
-        return zonePos(positions[i]);
-      }
-    }
     const lp = localPos[token];
     if (lp) return [lp.x, lp.y];
     const { x, y } = initialPos(token, n);
@@ -308,7 +302,7 @@ export default function GameScreen({ gameState, playerName, roomId, onPickToken,
           const hand = (allHands ?? {})[p.id] ?? myHand ?? [];
           if (!hand.length) return null;
           const [sx, sy] = positions[i];
-          const topPct = sy > 60 ? sy - 15 : sy + 6;
+          const topPct = sy <= 30 ? sy - 10 : sy + 8;
           return (
             <div
               key={`hand-${p.id}`}
@@ -326,12 +320,13 @@ export default function GameScreen({ gameState, playerName, roomId, onPickToken,
         {/* ── Validation zones ── */}
         {!isOver && ordered.map((p, i) => {
           const [zx, zy] = zonePos(positions[i]);
-          const hasToken = playerZones?.[p.id] != null;
+          const zoneTokens = Array.isArray(playerZones?.[p.id]) ? playerZones[p.id] : [];
+          const isExactlyOne = zoneTokens.length === 1;
           const isMe = p.id === myId;
           return (
             <div
               key={p.id}
-              className={`val-zone ${hasToken ? 'zone-green' : 'zone-red'} ${isMe ? 'zone-mine' : ''}`}
+              className={`val-zone ${isExactlyOne ? 'zone-green' : 'zone-red'} ${isMe ? 'zone-mine' : ''}`}
               style={{ left: `${zx}%`, top: `${zy}%` }}
             >
               <span className="zone-owner">{p.name}</span>
