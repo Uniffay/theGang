@@ -196,6 +196,22 @@ class Game {
 
   // ── Chat ─────────────────────────────────────────────────
 
+  // Remove token from whatever zone it's in, put back to pool
+  releaseToken(token) {
+    for (const pid of Object.keys(this.playerZones)) {
+      if (this.playerZones[pid] === token) {
+        this.playerZones[pid] = null;
+        if (!this.tokenPool.includes(token)) {
+          this.tokenPool.push(token);
+          this.tokenPool.sort((a, b) => a - b);
+        }
+        this.lastEvent = { type: 'token-released', token };
+        return { ok: true };
+      }
+    }
+    return { ok: true };
+  }
+
   addChat(playerId, text) {
     const name = this.players.find(p => p.id === playerId)?.name ?? '?';
     const msg = { name, text, ts: Date.now() };

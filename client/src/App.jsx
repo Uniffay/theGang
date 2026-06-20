@@ -35,10 +35,11 @@ export default function App() {
 
   const setReady = useCallback((v) => socket.emit('set-ready', { ready: v }), []);
   const pickToken = useCallback((token) => socket.emit('pick-token', { token }), []);
+  const releaseToken = useCallback((token) => socket.emit('release-token', { token }), []);
   const sendChat = useCallback((text) => socket.emit('chat', { text }), []);
   const restart = useCallback(() => socket.emit('restart'), []);
 
   if (screen === 'home') return <Home onJoin={join} error={error} />;
   if (screen === 'lobby') return <Lobby roomId={roomId} roomData={roomData} playerName={playerName} onReady={setReady} error={error} />;
-  return <GameScreen gameState={gameState} playerName={playerName} roomId={roomId} onPickToken={pickToken} onSendChat={sendChat} onRestart={restart} error={error} />;
+  return <GameScreen gameState={gameState} playerName={playerName} roomId={roomId} onPickToken={pickToken} onReleaseToken={releaseToken} onSendChat={sendChat} onRestart={restart} error={error} />;
 }

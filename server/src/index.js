@@ -50,6 +50,18 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Relay free token positions to other players (no game-state change)
+  socket.on('token-moved', ({ token, x, y }) => {
+    socket.to(currentRoom).emit('token-moved', { token, x, y });
+  });
+
+  socket.on('release-token', ({ token }) => {
+    if (!currentRoom) return;
+    const room = getOrCreateRoom(currentRoom);
+    room.releaseToken(token);
+    broadcastAll(currentRoom);
+  });
+
   socket.on('take-token', ({ token }) => {
     if (!currentRoom) return;
     const room = getOrCreateRoom(currentRoom);
