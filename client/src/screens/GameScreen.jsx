@@ -6,202 +6,306 @@ const PHASE_LABEL = { preflop: 'Préflop', flop: 'Flop', turn: 'Turn', river: 'R
 const PHASE_ORDER = ['preflop', 'flop', 'turn', 'river'];
 const COLOR_CLASS = { white: 'tok-white', yellow: 'tok-yellow', orange: 'tok-orange', red: 'tok-red' };
 
-function Token({ value, color, onClick, dim, highlight, size = 'md' }) {
-  const cls = [
-    'token',
-    COLOR_CLASS[color] ?? 'tok-white',
-    dim ? 'dim' : '',
-    highlight ? 'highlight' : '',
-    `tok-${size}`,
-    onClick ? 'clickable' : '',
-  ].filter(Boolean).join(' ');
-  return <button className={cls} onClick={onClick} disabled={!onClick}>{value}</button>;
-}
+// [left%, top%] – index 0 = me (always bottom-center)
+const SEAT_POS = {
+  2: [[50, 82], [50, 4]],
+  3: [[50, 82], [10, 18], [90, 18]],
+  4: [[50, 82], [4,  48], [50, 4],  [96, 48]],
+  5: [[50, 82], [8,  66], [10, 10], [90, 10], [92, 66]],
+};
 
-function CompletedPhase({ cp, players }) {
-  function pname(id) { return players?.find(p => p.id === id)?.name ?? '?'; }
-  const sorted = Object.entries(cp.zones).sort(([, a], [, b]) => a - b);
+// ── Token (draggable) ──────────────────────────────────────────────────────
+
+function Token({ value, color, size = 'lg', onClick }) {
   return (
-    <div className="cp-row">
-      <span className={`cp-label ${COLOR_CLASS[cp.color]}`}>{PHASE_LABEL[cp.phase]}</span>
-      {sorted.map(([id, t]) => (
-        <span key={id} className="cp-entry">
-          <Token value={t} color={cp.color} size="sm" />
-          <span className="cp-name">{pname(id)}</span>
-        </span>
-      ))}
+    <div
+      className={`token ${COLOR_CLASS[color] ?? 'tok-white'} tok-${size}`}
+      draggable
+      onClick={onClick}
+      onDragStart={e => {
+        e.dataTransfer.setData('text/plain', String(value));
+        e.dataTransfer.effectAllowed = 'move';
+        e.currentTarget.classList.add('dragging');
+      }}
+      onDragEnd={e => e.currentTarget.classList.remove('dragging')}
+    >
+      {value}
     </div>
   );
 }
 
-export default function GameScreen({ gameState, playerName, roomId, onPickToken, onSendChat, onRestart }) {
+// ── Player zone (drop target) ──────────────────────────────────────────────
+
+function PlayerZone({ token, color, onDrop, isMe }) {
+  const [over, setOver] = useState(false);
+
+  function handleDrop(e) {
+    e.preventDefault();
+    setOver(false);
+    const tok = parseInt(e.dataTransfer.getData('text/plain'));
+    if (tok) onDrop(tok);
+  }
+
+  return (
+    <div
+      className={`player-zone ${over ? 'dz-over' : ''} ${isMe ? 'dz-mine' : ''}`}
+      onDragOver={e => { e.preventDefault(); setOver(true); }}
+      onDragEnter={e => { e.preventDefault(); setOver(true); }}
+      onDragLeave={() => setOver(false)}
+      onDrop={handleDrop}
+    >
+      {token !== null
+        ? <Token value={token} color={color} onClick={() => onDrop(token)} />
+        : <div className="zone-empty" />
+      }
+    </div>
+  );
+}
+
+// ── Player seat ────────────────────────────────────────────────────────────
+
+function Seat({ player, token, color, isMe, hand, onDrop, pos, isOver: gameOver }) {
+  return (
+    <div
+      className={`seat ${isMe ? 'seat-me' : 'seat-other'}`}
+      style={{ left: `${pos[0]}%`, top: `${pos[1]}%` }}
+    >
+      {!isMe && <div className="seat-label">{player.name}</div>}
+
+      <PlayerZone token={token} color={color} onDrop={onDrop} isMe={isMe} />
+
+      {isMe && (
+        <>
+          <div className="seat-label seat-label-me">{player.name} <span>(toi)</span></div>
+          {hand && (
+            <div className="seat-hand">
+              {hand.map((card, i) => <PokerCard key={i} card={card} />)}
+            </div>
+          )}
+        </>
+      )}
+
+      {!isMe && gameOver && hand && (
+        <div className="seat-hand-other">
+          {hand.map((card, i) => <PokerCard key={i} card={card} small />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Poker table (felt + pool) ──────────────────────────────────────────────
+
+function PokerTable({ community, tokenPool, color, onPickToken, phase }) {
+  const [over, setOver] = useState(false);
+  const slots = Array(5).fill(null).map((_, i) => community[i] ?? null);
+
+  return (
+    <div className="poker-table">
+      <div className="table-felt">
+        {/* Community cards */}
+        <div className="table-community">
+          <p className="table-label">{PHASE_LABEL[phase]}</p>
+          <div className="community-cards">
+            {slots.map((card, i) => <PokerCard key={i} card={card} hidden={!card} />)}
+          </div>
+        </div>
+
+        {/* Token pool – also a drop target (dropping your token here returns it to pool) */}
+        <div
+          className={`table-pool ${over ? 'dz-over' : ''}`}
+          onDragOver={e => { e.preventDefault(); setOver(true); }}
+          onDragEnter={e => { e.preventDefault(); setOver(true); }}
+          onDragLeave={() => setOver(false)}
+          onDrop={e => {
+            e.preventDefault();
+            setOver(false);
+            const tok = parseInt(e.dataTransfer.getData('text/plain'));
+            if (tok) onPickToken(tok);
+          }}
+        >
+          <p className="table-label">Jetons</p>
+          <div className="pool-tokens">
+            {tokenPool?.map(t => (
+              <Token key={t} value={t} color={color} onClick={() => onPickToken(t)} />
+            ))}
+            {tokenPool?.length === 0 && <span className="pool-empty">Tous pris</span>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Sidebar ────────────────────────────────────────────────────────────────
+
+function Sidebar({ roomId, phase, phaseIndex, completedPhases, players, chat, onSendChat }) {
   const [chatText, setChatText] = useState('');
   const chatRef = useRef(null);
 
   useEffect(() => {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
-  }, [gameState?.chat]);
+  }, [chat]);
 
-  if (!gameState) return <div className="screen"><p style={{ color: 'var(--muted)' }}>Connexion…</p></div>;
+  function pname(id) { return players?.find(p => p.id === id)?.name ?? '?'; }
 
-  const { state, phase, phaseIndex, color, players, myHand, community, tokenPool, playerZones, completedPhases, revealOrder, n, lastEvent, chat } = gameState;
-  const isOver = state === 'won' || state === 'lost';
-  const me = players?.find(p => p.name === playerName);
-  const myId = me?.id;
-  const myToken = myId ? playerZones?.[myId] ?? null : null;
-
-  const communitySlots = Array(5).fill(null).map((_, i) => community[i] ?? null);
-
-  function sendChat(e) {
+  function submit(e) {
     e.preventDefault();
     if (chatText.trim()) { onSendChat(chatText); setChatText(''); }
   }
 
-  function handleTokenClick(token) {
-    onPickToken(token);
-  }
+  return (
+    <aside className="sidebar">
+      <div className="sidebar-header">
+        <span className="game-logo-sm">THE GANG</span>
+        <span className="room-chip">{roomId}</span>
+      </div>
+
+      {/* Phase track */}
+      <div className="phase-track">
+        {PHASE_ORDER.map((ph, i) => (
+          <div key={ph} className={`ph-pip ${i < phaseIndex ? 'done' : i === phaseIndex ? 'active' : 'future'} ${COLOR_CLASS[{ preflop:'white',flop:'yellow',turn:'orange',river:'red'}[ph]]}`}>
+            {PHASE_LABEL[ph]}
+          </div>
+        ))}
+      </div>
+
+      {/* History */}
+      {completedPhases?.length > 0 && (
+        <div className="history">
+          {completedPhases.map((cp, i) => (
+            <div key={i} className="cp-row">
+              <span className={`cp-ph ${COLOR_CLASS[cp.color]}`}>{PHASE_LABEL[cp.phase]}</span>
+              {Object.entries(cp.zones).sort(([,a],[,b])=>a-b).map(([id, t]) => (
+                <span key={id} className="cp-entry">
+                  <span className={`token tok-sm ${COLOR_CLASS[cp.color]}`}>{t}</span>
+                  <span className="cp-name">{pname(id)}</span>
+                </span>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Chat */}
+      <div className="chat-box" ref={chatRef}>
+        {(chat ?? []).map((m, i) => (
+          <div key={i} className="chat-line">
+            <span className="chat-name">{m.name}</span>
+            <span className="chat-text">{m.text}</span>
+          </div>
+        ))}
+      </div>
+      <form className="chat-form" onSubmit={submit}>
+        <input value={chatText} onChange={e => setChatText(e.target.value)} placeholder="Parle à ton gang…" maxLength={200} />
+        <button type="submit" className="btn btn-primary" style={{ padding: '7px 12px' }}>→</button>
+      </form>
+    </aside>
+  );
+}
+
+// ── End overlay ────────────────────────────────────────────────────────────
+
+function EndOverlay({ state, revealOrder, onRestart }) {
+  return (
+    <div className="end-overlay">
+      <div className="end-box">
+        <h2 className={state === 'won' ? 'won-title' : 'lost-title'}>
+          {state === 'won' ? '🏆 LE GANG GAGNE !' : '💀 MAUVAIS RANG !'}
+        </h2>
+        <p style={{ color: 'var(--muted)', fontSize: '0.82rem', marginBottom: 20 }}>
+          {state === 'won' ? 'Les jetons correspondent aux vraies mains.' : 'Les jetons ne correspondent pas.'}
+        </p>
+
+        <div className="reveal-list">
+          {(revealOrder ?? []).map((r, i) => (
+            <div key={r.id} className={`reveal-row ${r.correct ? 'correct' : 'wrong'}`}>
+              <span className={`token tok-sm tok-red`}>{r.token}</span>
+              <span className="rev-name">{r.name}</span>
+              <div className="rev-hand">
+                {r.hand?.map((card, ci) => <PokerCard key={ci} card={card} small />)}
+              </div>
+              <span className="rev-info">
+                <span className="rev-hand-name">{r.handName}</span>
+                <span className={r.correct ? 'rev-ok' : 'rev-ko'}>
+                  {r.correct ? `✓ rang ${r.actualRank}` : `✗ rang réel ${r.actualRank}`}
+                </span>
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <button className="btn btn-primary" style={{ marginTop: 24, width: '100%' }} onClick={onRestart}>
+          Rejouer
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Main component ─────────────────────────────────────────────────────────
+
+export default function GameScreen({ gameState, playerName, roomId, onPickToken, onSendChat, onRestart }) {
+  if (!gameState) return <div className="screen"><p style={{ color: 'var(--muted)' }}>Connexion…</p></div>;
+
+  const { state, phase, phaseIndex, color, players, myHand, community, tokenPool, playerZones, completedPhases, revealOrder, n, chat } = gameState;
+  const isOver = state === 'won' || state === 'lost';
+
+  // Reorder: me first, others in join order
+  const myPlayer = players?.find(p => p.name === playerName);
+  const others = players?.filter(p => p.name !== playerName) ?? [];
+  const ordered = myPlayer ? [myPlayer, ...others] : (players ?? []);
+  const positions = SEAT_POS[ordered.length] ?? SEAT_POS[2];
+
+  // For reveal: get other players' hands
+  const revealHandMap = {};
+  revealOrder?.forEach(r => { revealHandMap[r.id] = r.hand; });
 
   return (
     <div className="game-wrap">
-      {/* ── Sidebar ── */}
-      <aside className="sidebar">
-        <div className="sidebar-header">
-          <span className="game-logo-sm">THE GANG</span>
-          <span className="room-chip">{roomId}</span>
-        </div>
+      <Sidebar
+        roomId={roomId}
+        phase={phase}
+        phaseIndex={phaseIndex}
+        completedPhases={completedPhases}
+        players={players}
+        chat={chat}
+        onSendChat={onSendChat}
+      />
 
-        {/* Phase progress */}
-        <div className="phase-track">
-          {PHASE_ORDER.map((ph, i) => (
-            <div key={ph} className={`ph-pip ${i < phaseIndex ? 'done' : i === phaseIndex ? 'active' : 'future'} ${COLOR_CLASS[{ preflop:'white',flop:'yellow',turn:'orange',river:'red' }[ph]]}`}>
-              {PHASE_LABEL[ph]}
-            </div>
-          ))}
-        </div>
-
-        {/* Completed phases history */}
-        {completedPhases?.length > 0 && (
-          <div className="history">
-            {completedPhases.map((cp, i) => <CompletedPhase key={i} cp={cp} players={players} />)}
-          </div>
-        )}
-
-        {/* Chat */}
-        <div className="chat-box" ref={chatRef}>
-          {(chat ?? []).map((m, i) => (
-            <div key={i} className="chat-line">
-              <span className="chat-name">{m.name}</span>
-              <span className="chat-text">{m.text}</span>
-            </div>
-          ))}
-        </div>
-        <form className="chat-form" onSubmit={sendChat}>
-          <input value={chatText} onChange={e => setChatText(e.target.value)} placeholder="Parle à ton gang…" maxLength={200} />
-          <button type="submit" className="btn btn-primary" style={{ padding: '8px 12px' }}>→</button>
-        </form>
-      </aside>
-
-      {/* ── Main ── */}
-      <main className="game-main">
-        {/* Community cards */}
-        <section className="community-area">
-          <p className="section-label">Cartes communes — {PHASE_LABEL[phase]}</p>
-          <div className="community-cards">
-            {communitySlots.map((card, i) => (
-              <PokerCard key={i} card={card} hidden={!card} />
-            ))}
-          </div>
-        </section>
-
-        {/* Token pool */}
+      <div className="game-area">
+        {/* Poker table */}
         {!isOver && (
-          <section className="pool-area">
-            <p className="section-label">Jetons disponibles</p>
-            <div className="token-row">
-              {tokenPool?.length > 0
-                ? tokenPool.map(t => (
-                    <Token key={t} value={t} color={color} size="lg" onClick={() => handleTokenClick(t)} />
-                  ))
-                : <span style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>Tous les jetons sont pris</span>
-              }
-            </div>
-          </section>
+          <PokerTable
+            community={community}
+            tokenPool={tokenPool}
+            color={color}
+            onPickToken={onPickToken}
+            phase={phase}
+          />
         )}
 
-        {/* Player zones */}
-        {!isOver && (
-          <section className="zones-area">
-            <p className="section-label">Zones des joueurs</p>
-            <div className="zones-row">
-              {players?.map(p => {
-                const isMe = p.name === playerName;
-                const tok = playerZones?.[p.id] ?? null;
-                return (
-                  <div key={p.id} className={`player-zone ${isMe ? 'mine' : ''}`}>
-                    <span className="zone-name">{p.name}{isMe ? ' (toi)' : ''}</span>
-                    <div className="zone-slot">
-                      {tok !== null
-                        ? <Token
-                            value={tok}
-                            color={color}
-                            size="lg"
-                            onClick={isMe ? () => handleTokenClick(tok) : () => handleTokenClick(tok)}
-                            highlight={isMe}
-                          />
-                        : <div className="zone-empty" />
-                      }
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            {lastEvent?.type === 'phase-complete' && (
-              <p className="phase-ok">✓ {PHASE_LABEL[lastEvent.phase]} validé — passage au {PHASE_LABEL[PHASE_ORDER[phaseIndex]] ?? '…'}</p>
-            )}
-          </section>
-        )}
+        {/* Seats */}
+        {ordered.map((p, i) => {
+          const isMe = p.name === playerName;
+          return (
+            <Seat
+              key={p.id}
+              player={p}
+              token={playerZones?.[p.id] ?? null}
+              color={color}
+              isMe={isMe}
+              hand={isMe ? myHand : (isOver ? revealHandMap[p.id] : null)}
+              onDrop={onPickToken}
+              pos={positions[i] ?? positions[0]}
+              isOver={isOver}
+            />
+          );
+        })}
+      </div>
 
-        {/* My hand */}
-        <section className="hand-area">
-          <p className="section-label">Ta main (privée)</p>
-          <div className="hand-cards">
-            {(myHand ?? []).map((card, i) => <PokerCard key={i} card={card} />)}
-          </div>
-        </section>
-      </main>
-
-      {/* ── End overlay ── */}
       {isOver && (
-        <div className="end-overlay">
-          <div className="end-box">
-            <h2 className={state === 'won' ? 'won-title' : 'lost-title'}>
-              {state === 'won' ? '🏆 LE GANG GAGNE !' : '💀 MAUVAIS RANG !'}
-            </h2>
-            <p style={{ color: 'var(--muted)', fontSize: '0.85rem', marginBottom: 20 }}>
-              {state === 'won' ? 'Les rangs correspondent parfaitement.' : 'Les jetons ne correspondent pas aux vraies mains.'}
-            </p>
-
-            {/* Reveal in token order */}
-            <div className="reveal-list">
-              {(revealOrder ?? []).map((r, i) => (
-                <div key={r.id} className={`reveal-row ${r.correct ? 'correct' : 'wrong'}`}>
-                  <Token value={r.token} color="red" size="sm" />
-                  <span className="rev-name">{r.name}</span>
-                  <div className="rev-hand">
-                    {r.hand?.map((card, ci) => <PokerCard key={ci} card={card} small />)}
-                  </div>
-                  <span className="rev-hand-name">{r.handName}</span>
-                  <span className="rev-rank">
-                    rang réel <strong>{r.actualRank}</strong>
-                    {r.correct ? ' ✓' : ` ✗ (jeton ${r.token})`}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            <button className="btn btn-primary" style={{ marginTop: 24 }} onClick={onRestart}>Rejouer</button>
-          </div>
-        </div>
+        <EndOverlay state={state} revealOrder={revealOrder} onRestart={onRestart} />
       )}
     </div>
   );
