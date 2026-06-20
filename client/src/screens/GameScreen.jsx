@@ -212,16 +212,15 @@ export default function GameScreen({ gameState, playerName, roomId, onPickToken,
         }
       }
 
-      if (hitPlayer) {
-        // Drop on any zone → place token there, keep it at dropped position
-        onPlaceToken(prev.token, hitPlayer.id);
+      if (hitPlayer && hitPlayer.id === myId) {
+        // Drop in MY zone only → counts for validation
+        onPlaceToken(prev.token, myId);
         setLocalPos(p => ({ ...p, [prev.token]: { x: pctX, y: pctY } }));
         socket.emit('token-moved', { token: prev.token, x: pctX, y: pctY });
       } else {
-        // Drop on table → update local pos
+        // Drop on table or another player's zone → free position, no zone assignment
         setLocalPos(p => ({ ...p, [prev.token]: { x: pctX, y: pctY } }));
         socket.emit('token-moved', { token: prev.token, x: pctX, y: pctY });
-        // Release if token was in ANOTHER player's zone (own zone already released at drag start)
         if (prev.wasInZoneOf && prev.wasInZoneOf !== myId) {
           onReleaseToken(prev.token);
         }
