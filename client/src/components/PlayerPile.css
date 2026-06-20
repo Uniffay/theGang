@@ -1,0 +1,38 @@
+.player-pile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  min-width: 100px;
+}
+
+.pile-cards-icon {
+  position: relative;
+  height: 40px;
+  width: 60px;
+}
+
+.mini-card {
+  position: absolute;
+  width: 30px;
+  height: 40px;
+  background: linear-gradient(135deg, #1a1a2e, #16213e);
+  border: 1px solid #334;
+  border-radius: 4px;
+  top: 0;
+}
+
+.player-name {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.player-count {
+  font-size: 0.75rem;
+  color: var(--muted);
+}

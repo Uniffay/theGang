@@ -1,0 +1,181 @@
+.game-screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  position: relative;
+}
+
+.game-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.game-logo {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.6rem;
+  color: var(--accent);
+  letter-spacing: 0.1em;
+}
+
+.game-stats {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+}
+
+.stat-val {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.stat.code {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1rem;
+  color: var(--muted);
+  letter-spacing: 0.15em;
+}
+
+.other-players {
+  display: flex;
+  gap: 16px;
+  padding: 16px 24px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.table-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 24px;
+}
+
+.played-pile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.pile-card {
+  width: 100px;
+  height: 140px;
+  background: linear-gradient(135deg, #1a1a2e, #16213e);
+  border: 2px solid var(--accent);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 30px rgba(232, 200, 58, 0.25);
+}
+
+.pile-card.mistake {
+  border-color: var(--red);
+  box-shadow: 0 0 30px rgba(232, 64, 64, 0.4);
+  animation: shake 0.4s ease;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-8px); }
+  75% { transform: translateX(8px); }
+}
+
+.pile-num {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 3rem;
+  color: var(--accent);
+}
+
+.pile-empty {
+  width: 100px;
+  height: 140px;
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.pile-label {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.last-action {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+  max-width: 500px;
+}
+
+.last-action.good { background: rgba(64, 200, 116, 0.15); color: var(--green); border: 1px solid rgba(64, 200, 116, 0.3); }
+.last-action.bad { background: rgba(232, 64, 64, 0.15); color: var(--red); border: 1px solid rgba(232, 64, 64, 0.3); }
+.last-action.token { background: rgba(160, 144, 255, 0.15); color: #a090ff; border: 1px solid rgba(160, 144, 255, 0.3); }
+
+.hand-area {
+  padding: 20px 24px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hand-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  text-align: center;
+}
+
+.hand-cards {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.end-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.end-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 48px;
+  text-align: center;
+  max-width: 400px;
+  width: 90%;
+}
+
+.won-title { color: var(--accent); font-size: 2rem; margin-bottom: 12px; }
+.lost-title { color: var(--red); font-size: 2rem; margin-bottom: 12px; }

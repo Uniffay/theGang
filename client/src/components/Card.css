@@ -1,0 +1,34 @@
+.playing-card {
+  width: 64px;
+  height: 90px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.8rem;
+  transition: all 0.15s;
+  position: relative;
+}
+
+.playing-card.playable {
+  background: linear-gradient(135deg, #1c2a1c, #1a351a);
+  border: 2px solid var(--green);
+  color: var(--green);
+  box-shadow: 0 2px 12px rgba(64, 200, 116, 0.2);
+}
+
+.playing-card.playable:hover {
+  transform: translateY(-8px) scale(1.05);
+  box-shadow: 0 8px 24px rgba(64, 200, 116, 0.4);
+}
+
+.playing-card.early {
+  background: linear-gradient(135deg, #1f1015, #2a1010);
+  border: 2px solid #5a2020;
+  color: #885050;
+}
+
+.card-val {
+  pointer-events: none;
+}
