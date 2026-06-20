@@ -1,11 +1,15 @@
-const { v4: uuidv4 } = require('uuid');
+const { rankPlayers, handName } = require('./poker');
 
-const CARDS_PER_PLAYER = { 2: 10, 3: 9, 4: 8, 5: 8 };
-const LIVES_PER_GAME = 3;
-const TOTAL_CARDS = 40;
+const SUITS = ['♠', '♥', '♦', '♣'];
+const VALUES = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+const STAGES = ['preflop', 'flop', 'turn', 'river'];
+const COMMUNITY_COUNT = { preflop: 0, flop: 3, turn: 4, river: 5 };
+const LIVES = 3;
 
 function createDeck() {
-  return Array.from({ length: TOTAL_CARDS }, (_, i) => i + 1);
+  const deck = [];
+  for (const suit of SUITS) for (const value of VALUES) deck.push({ value, suit });
+  return deck;
 }
 
 function shuffle(arr) {
@@ -17,31 +21,27 @@ function shuffle(arr) {
   return a;
 }
 
-function dealCards(playerIds) {
-  const n = playerIds.length;
-  const perPlayer = CARDS_PER_PLAYER[n] ?? 8;
-  const deck = shuffle(createDeck());
-  const hands = {};
-  playerIds.forEach((id, i) => {
-    hands[id] = deck.slice(i * perPlayer, (i + 1) * perPlayer).sort((a, b) => a - b);
-  });
-  return hands;
-}
-
 class Game {
   constructor(roomId) {
     this.id = roomId;
     this.players = [];
-    this.state = 'lobby'; // lobby | playing | won | lost
+    this.state = 'lobby';
     this.hands = {};
-    this.played = [];
-    this.lives = LIVES_PER_GAME;
-    this.tokens = 0;
-    this.lastAction = null;
+    this.deck = [];
+    this.community = [];
+    this.stageIndex = 0;
+    this.pendingTokens = {};   // playerId -> token chosen (null = not chosen)
+    this.lives = LIVES;
+    this.lastEvent = null;
+    this.finalRanks = null;
+    this.chat = [];
   }
 
+  get stage() { return STAGES[this.stageIndex]; }
+  get n() { return this.players.length; }
+
   addPlayer(id, name) {
-    if (this.players.length >= 5 || this.state !== 'lobby') return false;
+    if (this.n >= 5 || this.state !== 'lobby') return false;
     if (this.players.find(p => p.id === id)) return false;
     this.players.push({ id, name, ready: false });
     return true;
@@ -58,96 +58,171 @@ class Game {
   }
 
   allReady() {
-    return this.players.length >= 2 && this.players.every(p => p.ready);
+    return this.n >= 2 && this.players.every(p => p.ready);
   }
 
   start() {
-    if (this.players.length < 2) return { error: 'Il faut au moins 2 joueurs.' };
+    if (this.n < 2) return { error: 'Il faut au moins 2 joueurs.' };
     this.state = 'playing';
-    this.hands = dealCards(this.players.map(p => p.id));
-    this.played = [];
-    this.lives = LIVES_PER_GAME;
-    this.tokens = Math.floor(this.players.length / 2);
-    this.lastAction = null;
+    this.stageIndex = 0;
+    this.lives = LIVES;
+    this.finalRanks = null;
+    this.lastEvent = null;
+    this.chat = [];
+
+    const deck = shuffle(createDeck());
+    this.community = deck.slice(0, 5); // 5 community cards (revealed progressively)
+    let offset = 5;
+    this.hands = {};
+    for (const p of this.players) {
+      this.hands[p.id] = [deck[offset++], deck[offset++]];
+    }
+    this.deck = deck;
+    this._openStage();
     return null;
   }
 
-  playCard(playerId, card) {
-    const hand = this.hands[playerId];
-    if (!hand) return { error: 'Joueur introuvable.' };
-    const idx = hand.indexOf(card);
-    if (idx === -1) return { error: 'Tu ne possèdes pas cette carte.' };
+  _openStage() {
+    this.pendingTokens = {};
+    this.players.forEach(p => { this.pendingTokens[p.id] = null; });
+    this.lastEvent = { type: 'stage-open', stage: this.stage };
+  }
 
-    const topCard = this.played.length > 0 ? this.played[this.played.length - 1].card : 0;
+  visibleCommunity() {
+    return this.community.slice(0, COMMUNITY_COUNT[this.stage]);
+  }
 
-    if (card < topCard) {
-      // card played too early — lose a life
+  pickToken(playerId, token) {
+    if (this.state !== 'playing') return { error: 'Partie non active.' };
+    if (!this.pendingTokens.hasOwnProperty(playerId)) return { error: 'Joueur introuvable.' };
+    if (this.pendingTokens[playerId] !== null) return { error: 'Tu as déjà choisi.' };
+    if (token < 1 || token > this.n) return { error: `Jeton invalide (1–${this.n}).` };
+
+    this.pendingTokens[playerId] = token;
+
+    // Check if everyone has picked
+    const allPicked = Object.values(this.pendingTokens).every(t => t !== null);
+    if (!allPicked) return { waiting: true };
+
+    return this._resolveStage();
+  }
+
+  _resolveStage() {
+    const choices = this.pendingTokens;
+    const tokens = Object.values(choices);
+    const unique = new Set(tokens);
+    const hasConflict = unique.size < tokens.length;
+
+    if (hasConflict) {
       this.lives--;
-      hand.splice(idx, 1);
-      this.played.push({ playerId, card, mistake: true });
-      this.lastAction = { type: 'mistake', playerId, card };
+      this.lastEvent = {
+        type: 'conflict',
+        choices: { ...choices },
+        stage: this.stage,
+      };
 
       if (this.lives <= 0) {
         this.state = 'lost';
-        return { mistake: true, lost: true };
+        this.lastEvent.lost = true;
+        return { conflict: true, lost: true };
       }
-      return { mistake: true };
+
+      // Redo this stage
+      this._openStage();
+      return { conflict: true };
     }
 
-    hand.splice(idx, 1);
-    this.played.push({ playerId, card });
-    this.lastAction = { type: 'play', playerId, card };
-
-    const allEmpty = this.players.every(p => this.hands[p.id].length === 0);
-    if (allEmpty) {
-      this.state = 'won';
-      return { won: true };
+    // No conflict — check if it's the river
+    if (this.stage === 'river') {
+      return this._finalCheck(choices);
     }
-    return {};
+
+    // Advance to next stage
+    this.lastEvent = {
+      type: 'stage-clear',
+      stage: this.stage,
+      choices: { ...choices },
+    };
+    this.stageIndex++;
+    this._openStage();
+    return { ok: true };
   }
 
-  useToken(playerId) {
-    if (this.tokens <= 0) return { error: 'Plus de jetons.' };
-    this.tokens--;
-    // everyone reveals their lowest card
-    const reveals = {};
-    this.players.forEach(p => {
-      const h = this.hands[p.id];
-      reveals[p.id] = h.length > 0 ? Math.min(...h) : null;
-    });
-    this.lastAction = { type: 'token', playerId, reveals };
-    return { reveals };
+  _finalCheck(choices) {
+    const playerIds = this.players.map(p => p.id);
+    const ranks = rankPlayers(this.hands, this.community, playerIds);
+    this.finalRanks = ranks;
+
+    // Check if every player's token matches their actual rank
+    const correct = playerIds.every(id => choices[id] === ranks[id]);
+
+    this.lastEvent = {
+      type: 'final',
+      choices: { ...choices },
+      ranks,
+      handNames: Object.fromEntries(playerIds.map(id => [id, handName(this.hands[id], this.community)])),
+      correct,
+    };
+
+    this.state = correct ? 'won' : 'lost';
+    return { final: true, correct };
+  }
+
+  addChat(playerId, text) {
+    const name = this.players.find(p => p.id === playerId)?.name ?? '?';
+    const msg = { name, text, ts: Date.now() };
+    this.chat.push(msg);
+    if (this.chat.length > 50) this.chat.shift();
+    return msg;
+  }
+
+  reset() {
+    this.players.forEach(p => { p.ready = false; });
+    this.state = 'lobby';
+    this.hands = {};
+    this.finalRanks = null;
+    this.lastEvent = null;
+    this.chat = [];
   }
 
   publicState(forPlayerId) {
-    const otherHands = {};
-    this.players.forEach(p => {
-      if (p.id !== forPlayerId) {
-        otherHands[p.id] = this.hands[p.id]?.length ?? 0;
-      }
-    });
+    const comm = this.visibleCommunity();
+    const myHand = this.hands[forPlayerId] ?? [];
+    const revealHands = this.state === 'won' || this.state === 'lost';
+
+    const otherPlayers = this.players
+      .filter(p => p.id !== forPlayerId)
+      .map(p => ({
+        id: p.id,
+        name: p.name,
+        hasPicked: this.pendingTokens[p.id] !== null,
+        hand: revealHands ? this.hands[p.id] : null,
+      }));
+
     return {
       state: this.state,
+      stage: this.stage,
+      stageIndex: this.stageIndex,
       players: this.players,
-      hand: this.hands[forPlayerId] ?? [],
-      otherHands,
-      played: this.played,
+      myHand,
+      community: comm,
       lives: this.lives,
-      tokens: this.tokens,
-      lastAction: this.lastAction,
+      n: this.n,
+      myToken: this.pendingTokens[forPlayerId] ?? null,
+      otherPlayers,
+      lastEvent: this.lastEvent,
+      chat: this.chat,
     };
   }
 }
 
 const rooms = new Map();
 
-function getOrCreateRoom(roomId) {
-  if (!rooms.has(roomId)) rooms.set(roomId, new Game(roomId));
-  return rooms.get(roomId);
+function getOrCreateRoom(id) {
+  if (!rooms.has(id)) rooms.set(id, new Game(id));
+  return rooms.get(id);
 }
 
-function deleteRoom(roomId) {
-  rooms.delete(roomId);
-}
+function deleteRoom(id) { rooms.delete(id); }
 
 module.exports = { getOrCreateRoom, deleteRoom };

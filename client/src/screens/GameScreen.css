@@ -1,61 +1,128 @@
-.game-screen {
-  min-height: 100vh;
+.game-wrap {
   display: flex;
-  flex-direction: column;
-  background: var(--bg);
-  position: relative;
+  height: 100vh;
+  overflow: hidden;
 }
 
-.game-header {
+/* ── Sidebar ── */
+.sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+.sidebar-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 24px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
 }
 
-.game-logo {
+.game-logo-sm {
   font-family: 'Bebas Neue', sans-serif;
-  font-size: 1.6rem;
+  font-size: 1.4rem;
   color: var(--accent);
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
 }
 
-.game-stats {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
-
-.stat {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.9rem;
-}
-
-.stat-val {
-  font-weight: 700;
-  font-size: 1.1rem;
-}
-
-.stat.code {
+.room-chip {
+  background: rgba(232,200,58,0.12);
+  color: var(--accent);
+  border: 1px solid rgba(232,200,58,0.3);
+  border-radius: 6px;
+  padding: 2px 8px;
   font-family: 'Bebas Neue', sans-serif;
   font-size: 1rem;
-  color: var(--muted);
   letter-spacing: 0.15em;
 }
 
-.other-players {
+.lives-row {
   display: flex;
-  gap: 16px;
-  padding: 16px 24px;
-  flex-wrap: wrap;
-  justify-content: center;
+  align-items: center;
+  gap: 4px;
 }
 
-.table-area {
+.life { font-size: 1.2rem; transition: opacity 0.2s; }
+.life.dead { opacity: 0.2; filter: grayscale(1); }
+
+.stage-row {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.stage-pip {
+  flex: 1;
+  text-align: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 4px 2px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
+.stage-pip.done { background: rgba(64,200,116,0.15); color: var(--green); border-color: var(--green); }
+.stage-pip.active { background: rgba(232,200,58,0.15); color: var(--accent); border-color: var(--accent); }
+.stage-pip.future { color: var(--muted); }
+
+.player-list { display: flex; flex-direction: column; gap: 6px; }
+
+.player-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+.player-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.player-nm { flex: 1; font-weight: 600; }
+
+.pick-status { color: var(--muted); font-size: 0.8rem; }
+.pick-status.picked { color: var(--green); font-weight: 700; }
+
+.chat-box {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 80px;
+  max-height: 200px;
+  background: rgba(0,0,0,0.2);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.chat-line { font-size: 0.8rem; line-height: 1.4; }
+.chat-name { color: var(--accent); font-weight: 700; margin-right: 6px; }
+.chat-text { color: var(--text); }
+
+.chat-form {
+  display: flex;
+  gap: 6px;
+}
+
+.chat-form input {
+  flex: 1;
+  padding: 8px 10px;
+  font-size: 0.85rem;
+}
+
+/* ── Main ── */
+.game-main {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -63,104 +130,111 @@
   justify-content: center;
   gap: 20px;
   padding: 24px;
+  overflow-y: auto;
 }
 
-.played-pile {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
-.pile-card {
-  width: 100px;
-  height: 140px;
-  background: linear-gradient(135deg, #1a1a2e, #16213e);
-  border: 2px solid var(--accent);
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 0 30px rgba(232, 200, 58, 0.25);
-}
-
-.pile-card.mistake {
-  border-color: var(--red);
-  box-shadow: 0 0 30px rgba(232, 64, 64, 0.4);
-  animation: shake 0.4s ease;
-}
-
-@keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-8px); }
-  75% { transform: translateX(8px); }
-}
-
-.pile-num {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 3rem;
-  color: var(--accent);
-}
-
-.pile-empty {
-  width: 100px;
-  height: 140px;
-  border: 2px dashed var(--border);
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  color: var(--muted);
-  font-size: 0.75rem;
-}
-
-.pile-label {
-  font-size: 0.8rem;
-  color: var(--muted);
-}
-
-.last-action {
-  padding: 10px 20px;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  text-align: center;
-  max-width: 500px;
-}
-
-.last-action.good { background: rgba(64, 200, 116, 0.15); color: var(--green); border: 1px solid rgba(64, 200, 116, 0.3); }
-.last-action.bad { background: rgba(232, 64, 64, 0.15); color: var(--red); border: 1px solid rgba(232, 64, 64, 0.3); }
-.last-action.token { background: rgba(160, 144, 255, 0.15); color: #a090ff; border: 1px solid rgba(160, 144, 255, 0.3); }
-
-.hand-area {
-  padding: 20px 24px;
-  background: var(--surface);
-  border-top: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.hand-label {
-  font-size: 0.75rem;
+.section-label {
+  font-size: 0.7rem;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.15em;
   color: var(--muted);
-  text-align: center;
+  margin-bottom: 10px;
 }
 
-.hand-cards {
+.community-area { text-align: center; }
+
+.community-cards {
   display: flex;
   gap: 10px;
   justify-content: center;
   flex-wrap: wrap;
 }
 
+.event-banner {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-align: center;
+  max-width: 600px;
+  width: 100%;
+}
+
+.event-banner.good { background: rgba(64,200,116,0.12); color: var(--green); border: 1px solid rgba(64,200,116,0.3); }
+.event-banner.bad  { background: rgba(232,64,64,0.12); color: var(--red); border: 1px solid rgba(232,64,64,0.3); }
+.event-banner.neutral { background: rgba(232,200,58,0.08); color: var(--accent); border: 1px solid rgba(232,200,58,0.2); }
+
+.hand-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  max-width: 600px;
+}
+
+.hand-cards {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.token-area {
+  margin-top: 16px;
+  text-align: center;
+  width: 100%;
+}
+
+.token-row {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.token-btn {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  color: var(--text);
+  font-size: 1.4rem;
+  font-weight: 700;
+  font-family: 'Bebas Neue', sans-serif;
+  transition: all 0.15s;
+}
+
+.token-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+  transform: scale(1.1);
+}
+
+.token-btn.selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #000;
+  transform: scale(1.12);
+}
+
+.token-btn:disabled:not(.selected) { opacity: 0.35; }
+
+.reveal-hands {
+  display: flex;
+  gap: 32px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.other-hand { text-align: center; }
+
+/* ── End overlay ── */
 .end-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.75);
+  background: rgba(0,0,0,0.8);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -171,11 +245,19 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 20px;
-  padding: 48px;
-  text-align: center;
-  max-width: 400px;
+  padding: 40px;
+  max-width: 500px;
   width: 90%;
+  text-align: center;
 }
 
-.won-title { color: var(--accent); font-size: 2rem; margin-bottom: 12px; }
-.lost-title { color: var(--red); font-size: 2rem; margin-bottom: 12px; }
+.won-title { color: var(--accent); font-size: 2rem; margin-bottom: 8px; }
+.lost-title { color: var(--red); font-size: 2rem; margin-bottom: 8px; }
+
+/* Mobile */
+@media (max-width: 600px) {
+  .game-wrap { flex-direction: column; }
+  .sidebar { width: 100%; height: auto; max-height: 200px; flex-direction: row; flex-wrap: wrap; overflow-y: auto; }
+  .chat-box { display: none; }
+  .chat-form { display: none; }
+}

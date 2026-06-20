@@ -9,8 +9,6 @@ const { getOrCreateRoom, deleteRoom } = require('./game');
 const app = express();
 const server = http.createServer(app);
 
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
-
 const io = new Server(server, {
   cors: { origin: '*', methods: ['GET', 'POST'] },
 });
@@ -18,34 +16,28 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.json());
 
-// Serve React build in production
 const clientDist = path.join(__dirname, '../../client/dist');
 app.use(express.static(clientDist));
 
-app.get('/api/room/new', (req, res) => {
+app.get('/api/room/new', (_, res) => {
   const roomId = uuidv4().slice(0, 6).toUpperCase();
   res.json({ roomId });
 });
 
-app.get('*', (req, res) => {
-  res.sendFile(path.join(clientDist, 'index.html'));
-});
+app.get('*', (_, res) => res.sendFile(path.join(clientDist, 'index.html')));
 
 io.on('connection', (socket) => {
   let currentRoom = null;
-  let currentName = null;
 
   socket.on('join-room', ({ roomId, name }) => {
     const room = getOrCreateRoom(roomId);
-    const ok = room.addPlayer(socket.id, name);
-    if (!ok) {
+    if (!room.addPlayer(socket.id, name)) {
       socket.emit('error', { message: 'Impossible de rejoindre cette salle.' });
       return;
     }
     currentRoom = roomId;
-    currentName = name;
     socket.join(roomId);
-    broadcastRoom(roomId, socket.id);
+    broadcastRoom(roomId);
     socket.emit('joined', { roomId });
   });
 
@@ -53,71 +45,58 @@ io.on('connection', (socket) => {
     if (!currentRoom) return;
     const room = getOrCreateRoom(currentRoom);
     room.setReady(socket.id, ready);
-    broadcastRoom(currentRoom, socket.id);
+    broadcastRoom(currentRoom);
 
     if (room.allReady()) {
       const err = room.start();
-      if (err) {
-        socket.emit('error', err);
-        return;
-      }
-      broadcastAllStates(currentRoom);
+      if (err) { socket.emit('error', err); return; }
+      broadcastAll(currentRoom);
     }
   });
 
-  socket.on('play-card', ({ card }) => {
+  socket.on('pick-token', ({ token }) => {
     if (!currentRoom) return;
     const room = getOrCreateRoom(currentRoom);
-    if (room.state !== 'playing') return;
-    const result = room.playCard(socket.id, card);
+    const result = room.pickToken(socket.id, token);
     if (result.error) { socket.emit('error', result); return; }
-    broadcastAllStates(currentRoom);
+    broadcastAll(currentRoom);
   });
 
-  socket.on('use-token', () => {
-    if (!currentRoom) return;
+  socket.on('chat', ({ text }) => {
+    if (!currentRoom || !text?.trim()) return;
     const room = getOrCreateRoom(currentRoom);
-    if (room.state !== 'playing') return;
-    const result = room.useToken(socket.id);
-    if (result.error) { socket.emit('error', result); return; }
-    broadcastAllStates(currentRoom);
+    const msg = room.addChat(socket.id, text.trim().slice(0, 200));
+    io.to(currentRoom).emit('chat-msg', msg);
   });
 
   socket.on('restart', () => {
     if (!currentRoom) return;
     const room = getOrCreateRoom(currentRoom);
-    room.players.forEach(p => { p.ready = false; });
-    room.state = 'lobby';
-    broadcastRoom(currentRoom, socket.id);
+    room.reset();
+    broadcastRoom(currentRoom);
   });
 
   socket.on('disconnect', () => {
     if (!currentRoom) return;
     const room = getOrCreateRoom(currentRoom);
     room.removePlayer(socket.id);
-    if (room.players.length === 0) {
-      deleteRoom(currentRoom);
-    } else {
-      broadcastRoom(currentRoom, null);
-    }
+    if (room.players.length === 0) deleteRoom(currentRoom);
+    else broadcastAll(currentRoom);
   });
 
-  function broadcastRoom(roomId, fromSocketId) {
+  function broadcastRoom(roomId) {
     const room = getOrCreateRoom(roomId);
-    io.to(roomId).emit('room-update', {
-      players: room.players,
-      state: room.state,
-    });
+    io.to(roomId).emit('room-update', { players: room.players, state: room.state });
   }
 
-  function broadcastAllStates(roomId) {
+  function broadcastAll(roomId) {
     const room = getOrCreateRoom(roomId);
-    room.players.forEach(p => {
+    for (const p of room.players) {
       const s = io.sockets.sockets.get(p.id);
       if (s) s.emit('game-state', room.publicState(p.id));
-    });
+    }
   }
 });
 
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => console.log(`TheGang server running on :${PORT}`));
+server.listen(PORT, () => console.log(`TheGang server :${PORT}`));
