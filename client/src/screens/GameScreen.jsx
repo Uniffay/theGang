@@ -146,7 +146,7 @@ function EndOverlay({ state, revealOrder, players, onRestart }) {
 
 // ── Main GameScreen ────────────────────────────────────────────────────────
 
-export default function GameScreen({ gameState, playerName, roomId, onPickToken, onReleaseToken, onSendChat, onRestart }) {
+export default function GameScreen({ gameState, playerName, roomId, onPickToken, onPlaceToken, onReleaseToken, onSendChat, onRestart }) {
   const gameAreaRef = useRef(null);
   const [localPos, setLocalPos] = useState({});      // token → {x%, y%} in game-area
   const [dragState, setDragState] = useState(null);  // { token, curX, curY, wasInZoneOf }
@@ -212,18 +212,18 @@ export default function GameScreen({ gameState, playerName, roomId, onPickToken,
         }
       }
 
-      if (hitPlayer && hitPlayer.id === myId) {
-        // Drop in MY zone → take token
-        onPickToken(prev.token);
-        const [zx, zy] = zonePos(positions[0]);
+      if (hitPlayer) {
+        // Drop on any zone → place token there
+        onPlaceToken(prev.token, hitPlayer.id);
+        const hIdx = ordered.findIndex(p => p.id === hitPlayer.id);
+        const [zx, zy] = zonePos(positions[hIdx >= 0 ? hIdx : 0]);
         setLocalPos(p => ({ ...p, [prev.token]: { x: zx, y: zy } }));
       } else {
-        // Drop on table or other zone → update local pos, maybe release
+        // Drop on table → update local pos
         setLocalPos(p => ({ ...p, [prev.token]: { x: pctX, y: pctY } }));
         socket.emit('token-moved', { token: prev.token, x: pctX, y: pctY });
-
-        // If token was in a zone, release it
-        if (prev.wasInZoneOf) {
+        // Release if token was in ANOTHER player's zone (own zone already released at drag start)
+        if (prev.wasInZoneOf && prev.wasInZoneOf !== myId) {
           onReleaseToken(prev.token);
         }
       }
@@ -237,15 +237,18 @@ export default function GameScreen({ gameState, playerName, roomId, onPickToken,
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     };
-  }, [dragState, ordered, positions, myId, onPickToken, onReleaseToken]);
+  }, [dragState, ordered, positions, myId, onPlaceToken, onReleaseToken]);
 
   function startDrag(e, token) {
     if (isOver) return;
     e.preventDefault();
-    // Find which zone (if any) this token is currently in
     let wasInZoneOf = null;
     for (const [pid, t] of Object.entries(playerZones ?? {})) {
       if (t === token) { wasInZoneOf = pid; break; }
+    }
+    // Release own zone immediately so server doesn't see "toggle" on re-drop
+    if (wasInZoneOf === myId) {
+      onReleaseToken(token);
     }
     setDragState({ token, curX: e.clientX, curY: e.clientY, wasInZoneOf });
   }

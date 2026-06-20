@@ -168,6 +168,41 @@ class Game {
     return { ok: true };
   }
 
+  // Place a token in any player's zone (cooperative drag-to-any-zone)
+  placeToken(requestingPlayerId, targetPlayerId, token) {
+    if (this.state !== 'playing') return { error: 'Pas en cours de jeu.' };
+    if (token < 1 || token > this.n) return { error: 'Jeton invalide.' };
+    if (!Object.prototype.hasOwnProperty.call(this.playerZones, targetPlayerId)) return { error: 'Joueur invalide.' };
+
+    const inPool = this.tokenPool.includes(token);
+    const fromPlayerId = Object.keys(this.playerZones).find(pid => this.playerZones[pid] === token) ?? null;
+
+    if (!inPool && !fromPlayerId) return { error: 'Jeton introuvable.' };
+    if (fromPlayerId === targetPlayerId) return { ok: true }; // already there
+
+    // Remove from current location
+    if (fromPlayerId) {
+      this.playerZones[fromPlayerId] = null;
+    } else {
+      this.tokenPool = this.tokenPool.filter(t => t !== token);
+    }
+
+    // Return target's existing token to pool
+    const existing = this.playerZones[targetPlayerId];
+    if (existing !== null) {
+      this.tokenPool.push(existing);
+      this.tokenPool.sort((a, b) => a - b);
+    }
+
+    this.playerZones[targetPlayerId] = token;
+    this.lastEvent = { type: 'token-placed', requestingPlayerId, targetPlayerId, token };
+
+    const allFilled = Object.values(this.playerZones).every(t => t !== null);
+    if (allFilled) return this._validatePhase();
+
+    return { ok: true };
+  }
+
   // ── Reveal ───────────────────────────────────────────────
 
   _reveal() {

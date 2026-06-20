@@ -62,6 +62,14 @@ io.on('connection', (socket) => {
     broadcastAll(currentRoom);
   });
 
+  socket.on('place-token', ({ token, targetPlayerId }) => {
+    if (!currentRoom) return;
+    const room = getOrCreateRoom(currentRoom);
+    const result = room.placeToken(socket.id, targetPlayerId, token);
+    if (result?.error) { socket.emit('error', result); return; }
+    broadcastAll(currentRoom);
+  });
+
   socket.on('take-token', ({ token }) => {
     if (!currentRoom) return;
     const room = getOrCreateRoom(currentRoom);
