@@ -241,6 +241,7 @@ class Game {
       color: this.color,
       players: this.players,
       myHand: this.hands[forPlayerId] ?? [],
+      allHands: { ...this.hands },
       community: this.visibleCommunity(),
       tokenPool: [...this.tokenPool],
       playerZones: { ...this.playerZones },

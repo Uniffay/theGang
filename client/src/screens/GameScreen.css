@@ -121,9 +121,18 @@
 .hand-float {
   position: absolute;
   transform: translate(-50%, 0);
-  display: flex; gap: 8px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
   z-index: 25;
   pointer-events: none;
+}
+
+.hand-float-cards { display: flex; gap: 6px; }
+
+.hand-name-label {
+  font-size: 0.58rem; font-weight: 800;
+  text-transform: uppercase; letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.45);
+  white-space: nowrap;
 }
 
 /* ── Validation zones ─────────────────────────────────────────────────── */

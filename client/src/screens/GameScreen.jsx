@@ -153,7 +153,7 @@ export default function GameScreen({ gameState, playerName, roomId, onPickToken,
 
   if (!gameState) return <div className="screen"><p style={{ color: 'var(--muted)' }}>Connexion…</p></div>;
 
-  const { state, phase, phaseIndex, color, players, myHand, community, playerZones, completedPhases, revealOrder, n, chat } = gameState;
+  const { state, phase, phaseIndex, color, players, myHand, allHands, community, playerZones, completedPhases, revealOrder, n, chat } = gameState;
   const isOver = state === 'won' || state === 'lost';
 
   // Ordered players: me first
@@ -300,15 +300,25 @@ export default function GameScreen({ gameState, playerName, roomId, onPickToken,
           </div>
         ))}
 
-        {/* ── My hand cards (below my label) ── */}
-        {myHand?.length > 0 && (
-          <div
-            className="hand-float"
-            style={{ left: `${positions[0][0]}%`, top: `${positions[0][1] + 7}%` }}
-          >
-            {myHand.map((card, i) => <PokerCard key={i} card={card} />)}
-          </div>
-        )}
+        {/* ── All player hands (always visible) ── */}
+        {ordered.map((p, i) => {
+          const hand = (allHands ?? {})[p.id] ?? myHand ?? [];
+          if (!hand.length) return null;
+          const [sx, sy] = positions[i];
+          const topPct = sy > 60 ? sy - 15 : sy + 6;
+          return (
+            <div
+              key={`hand-${p.id}`}
+              className="hand-float"
+              style={{ left: `${sx}%`, top: `${topPct}%` }}
+            >
+              <div className="hand-name-label">{p.name.slice(0, 6)}</div>
+              <div className="hand-float-cards">
+                {hand.map((card, ci) => <PokerCard key={ci} card={card} small />)}
+              </div>
+            </div>
+          );
+        })}
 
         {/* ── Validation zones ── */}
         {!isOver && ordered.map((p, i) => {
@@ -342,21 +352,6 @@ export default function GameScreen({ gameState, playerName, roomId, onPickToken,
           );
         })}
 
-        {/* ── End reveal (other hands on table) ── */}
-        {isOver && ordered.filter(p => p.id !== myId).map((p, i) => {
-          const seatIdx = ordered.indexOf(p);
-          const r = revealOrder?.find(r => r.id === p.id);
-          if (!r?.hand) return null;
-          return (
-            <div
-              key={p.id}
-              className="hand-float"
-              style={{ left: `${positions[seatIdx][0]}%`, top: `${positions[seatIdx][1] + 5}%` }}
-            >
-              {r.hand.map((card, ci) => <PokerCard key={ci} card={card} small />)}
-            </div>
-          );
-        })}
       </div>
 
       {/* ── Drag ghost (fixed, follows cursor) ── */}
