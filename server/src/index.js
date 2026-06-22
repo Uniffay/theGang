@@ -23,6 +23,58 @@ app.get('/api/room/new', (_, res) => {
 
 app.get('*', (_, res) => res.sendFile(path.join(clientDist, 'index.html')));
 
+// ── Broadcast helpers ────────────────────────────────────────────────────────
+function broadcastRoom(roomId) {
+  const room = getOrCreateRoom(roomId);
+  io.to(roomId).emit('room-update', {
+    players: room.players,
+    state: room.state,
+    mode: room.mode,
+    creatorName: room.players[0]?.name,
+    defaultMalus: room.defaultMalus,
+  });
+}
+
+function broadcastAll(roomId) {
+  const room = getOrCreateRoom(roomId);
+  for (const p of room.players) {
+    const s = io.sockets.sockets.get(p.id);
+    if (s) s.emit('game-state', room.publicState(p.id));
+  }
+}
+
+// ── Validation countdown (server-side 3s timer) ───────────────────────────────
+const validationTimers = new Map(); // roomId -> timerId
+
+function startCountdown(roomId) {
+  cancelCountdown(roomId);
+  const room = getOrCreateRoom(roomId);
+  room.countdownStartedAt = Date.now();
+  broadcastAll(roomId);
+
+  const timer = setTimeout(() => {
+    validationTimers.delete(roomId);
+    const r = getOrCreateRoom(roomId);
+    r.validateNow();
+    broadcastAll(roomId);
+  }, 3000);
+
+  validationTimers.set(roomId, timer);
+}
+
+function cancelCountdown(roomId) {
+  if (validationTimers.has(roomId)) {
+    clearTimeout(validationTimers.get(roomId));
+    validationTimers.delete(roomId);
+  }
+  const room = getOrCreateRoom(roomId);
+  if (room.countdownStartedAt) {
+    room.countdownStartedAt = null;
+    broadcastAll(roomId);
+  }
+}
+
+// ── Socket handlers ──────────────────────────────────────────────────────────
 io.on('connection', (socket) => {
   let currentRoom = null;
 
@@ -34,8 +86,29 @@ io.on('connection', (socket) => {
     }
     currentRoom = roomId;
     socket.join(roomId);
-    broadcastRoom(roomId);
     socket.emit('joined', { roomId });
+    if (room.state !== 'lobby') {
+      socket.emit('game-state', room.publicState(socket.id));
+      broadcastAll(currentRoom);
+    } else {
+      broadcastRoom(roomId);
+    }
+  });
+
+  socket.on('toggle-default-malus', ({ id }) => {
+    if (!currentRoom) return;
+    const room = getOrCreateRoom(currentRoom);
+    if (room.players[0]?.id !== socket.id) return; // host only
+    room.toggleDefaultMalus(id);
+    broadcastRoom(currentRoom);
+  });
+
+  socket.on('set-game-mode', ({ mode }) => {
+    if (!currentRoom) return;
+    const room = getOrCreateRoom(currentRoom);
+    if (room.players[0]?.id !== socket.id) return; // host only
+    room.setMode(mode);
+    broadcastRoom(currentRoom);
   });
 
   socket.on('set-ready', ({ ready }) => {
@@ -44,21 +117,29 @@ io.on('connection', (socket) => {
     room.setReady(socket.id, ready);
     broadcastRoom(currentRoom);
     if (room.allReady()) {
-      const err = room.start();
+      const err = room.start(true); // fromLobby → load defaultMalus
       if (err) { socket.emit('error', err); return; }
       broadcastAll(currentRoom);
     }
   });
 
-  // Relay free token positions to other players (no game-state change)
-  socket.on('token-moved', ({ token, x, y }) => {
-    socket.to(currentRoom).emit('token-moved', { token, x, y });
+  socket.on('submit-vote', ({ value }) => {
+    if (!currentRoom) return;
+    const room = getOrCreateRoom(currentRoom);
+    const result = room.submitVote(socket.id, value);
+    if (result?.error) { socket.emit('error', result); return; }
+    broadcastAll(currentRoom);
+  });
+
+  socket.on('token-moved', ({ token, x, y, dragger }) => {
+    socket.to(currentRoom).emit('token-moved', { token, x, y, dragger });
   });
 
   socket.on('release-token', ({ token }) => {
     if (!currentRoom) return;
     const room = getOrCreateRoom(currentRoom);
     room.releaseToken(token);
+    cancelCountdown(currentRoom);
     broadcastAll(currentRoom);
   });
 
@@ -67,15 +148,23 @@ io.on('connection', (socket) => {
     const room = getOrCreateRoom(currentRoom);
     const result = room.placeToken(socket.id, targetPlayerId, token);
     if (result?.error) { socket.emit('error', result); return; }
-    broadcastAll(currentRoom);
+    if (result?.allFilled) {
+      startCountdown(currentRoom);
+    } else {
+      broadcastAll(currentRoom);
+    }
   });
 
   socket.on('take-token', ({ token }) => {
     if (!currentRoom) return;
     const room = getOrCreateRoom(currentRoom);
     const result = room.takeToken(socket.id, token);
-    if (result.error) { socket.emit('error', result); return; }
-    broadcastAll(currentRoom);
+    if (result?.error) { socket.emit('error', result); return; }
+    if (result?.allFilled) {
+      startCountdown(currentRoom);
+    } else {
+      broadcastAll(currentRoom);
+    }
   });
 
   socket.on('chat', ({ text }) => {
@@ -85,32 +174,84 @@ io.on('connection', (socket) => {
     io.to(currentRoom).emit('chat-msg', msg);
   });
 
-  socket.on('restart', () => {
+  socket.on('kick-player', ({ targetId }) => {
     if (!currentRoom) return;
-    getOrCreateRoom(currentRoom).reset();
-    broadcastRoom(currentRoom);
+    const room = getOrCreateRoom(currentRoom);
+    if (room.state === 'lobby') {
+      if (room.players[0]?.id !== socket.id) return;
+      const target = room.players.find(p => p.id === targetId);
+      if (!target) return;
+      room.removePlayer(targetId);
+      io.to(targetId).emit('kicked');
+      broadcastRoom(currentRoom);
+    } else {
+      if (room.hostId !== socket.id) return;
+      const result = room.leaveGame(targetId);
+      if (!result) return;
+      io.to(targetId).emit('kicked');
+      if (result.allFilled && room.state === 'playing') {
+        startCountdown(currentRoom);
+      } else {
+        broadcastAll(currentRoom);
+      }
+    }
+  });
+
+  socket.on('leave-game', () => {
+    if (!currentRoom) return;
+    const room = getOrCreateRoom(currentRoom);
+    if (room.state === 'lobby') return;
+    const result = room.leaveGame(socket.id);
+    if (!result) return;
+    socket.emit('left-game');
+    if (result.allFilled && room.state === 'playing') {
+      startCountdown(currentRoom);
+    } else {
+      broadcastAll(currentRoom);
+    }
+  });
+
+  socket.on('host-action', ({ action }) => {
+    if (!currentRoom) return;
+    const room = getOrCreateRoom(currentRoom);
+    if (room.hostId !== socket.id) return; // host only
+
+    cancelCountdown(currentRoom);
+
+    if (action === 'terminate') {
+      io.to(currentRoom).emit('room-terminated');
+      deleteRoom(currentRoom);
+    } else if (action === 'reset-zero') {
+      room.resetZero();
+      broadcastRoom(currentRoom);
+    } else if (action === 'next-manche') {
+      const { newMalus } = room.nextManche();
+      if (newMalus) {
+        io.to(currentRoom).emit('malus-drawn', { malus: newMalus });
+        const rid = currentRoom;
+        setTimeout(() => {
+          const r = getOrCreateRoom(rid);
+          if (r) { r.start(false); broadcastAll(rid); }
+        }, 4500);
+      } else {
+        room.start(false);
+        broadcastAll(currentRoom);
+      }
+    }
   });
 
   socket.on('disconnect', () => {
     if (!currentRoom) return;
     const room = getOrCreateRoom(currentRoom);
-    room.removePlayer(socket.id);
-    if (room.players.length === 0) deleteRoom(currentRoom);
-    else broadcastAll(currentRoom);
-  });
-
-  function broadcastRoom(roomId) {
-    const room = getOrCreateRoom(roomId);
-    io.to(roomId).emit('room-update', { players: room.players, state: room.state });
-  }
-
-  function broadcastAll(roomId) {
-    const room = getOrCreateRoom(roomId);
-    for (const p of room.players) {
-      const s = io.sockets.sockets.get(p.id);
-      if (s) s.emit('game-state', room.publicState(p.id));
+    if (room.state === 'lobby') {
+      room.removePlayer(socket.id);
+      if (room.players.length === 0) deleteRoom(currentRoom);
+      else broadcastRoom(currentRoom);
+    } else {
+      room.markDisconnected(socket.id);
+      broadcastAll(currentRoom);
     }
-  }
+  });
 });
 
 const PORT = process.env.PORT || 3001;

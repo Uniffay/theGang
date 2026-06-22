@@ -20,7 +20,7 @@ function evaluate5(cards) {
   const counts = {};
   vals.forEach(v => { counts[v] = (counts[v] || 0) + 1; });
   const groups = Object.entries(counts)
-    .sort(([, a], [, b]) => b - a || 0)
+    .sort(([va, a], [vb, b]) => b - a || parseInt(vb) - parseInt(va))
     .map(([v, c]) => ({ v: parseInt(v), c }));
 
   const isFlush = suits.every(s => s === suits[0]);
@@ -80,20 +80,42 @@ function bestHandScore(holeCards, communityCards) {
   return Math.max(...combinations(all, 5).map(evaluate5));
 }
 
-// Returns { playerId: rank } — rank 1 = worst hand, N = best hand
-// Ties broken by player join order (tiebreaker = playerIndex)
+// Returns the 5 cards forming the best hand, sorted ascending by value
+function bestFiveCards(holeCards, communityCards) {
+  const all = [...holeCards, ...communityCards];
+  if (all.length <= 5) {
+    return [...all].sort((a, b) => CARD_NUM[a.value] - CARD_NUM[b.value]);
+  }
+  let best = null, bestScore = -Infinity;
+  for (const combo of combinations(all, 5)) {
+    const s = evaluate5(combo);
+    if (s > bestScore) { bestScore = s; best = combo; }
+  }
+  return (best ?? all.slice(0, 5)).sort((a, b) => CARD_NUM[a.value] - CARD_NUM[b.value]);
+}
+
+// Returns { playerId: { rank, minRank, maxRank } }
+// rank 1 = worst hand. Tied players share the same rank range.
 function rankPlayers(playerHands, communityCards, playerIds) {
-  const scores = playerIds.map((id, idx) => ({
+  const scores = playerIds.map(id => ({
     id,
     score: bestHandScore(playerHands[id] || [], communityCards),
-    idx,
   }));
 
-  scores.sort((a, b) => a.score - b.score || a.idx - b.idx); // ascending
+  scores.sort((a, b) => a.score - b.score); // ascending, no tiebreaker
 
-  const ranks = {};
-  scores.forEach(({ id }, i) => { ranks[id] = i + 1; }); // 1 = worst
-  return ranks;
+  const result = {};
+  let i = 0;
+  while (i < scores.length) {
+    const score = scores[i].score;
+    let j = i;
+    while (j < scores.length && scores[j].score === score) j++;
+    for (let k = i; k < j; k++) {
+      result[scores[k].id] = { rank: i + 1, minRank: i + 1, maxRank: j };
+    }
+    i = j;
+  }
+  return result;
 }
 
 function handName(holeCards, communityCards) {
@@ -108,4 +130,161 @@ function handName(holeCards, communityCards) {
   return NAMES[rank] ?? '?';
 }
 
-module.exports = { rankPlayers, handName };
+// ── Omaha: exactly 2 hole + 3 community ─────────────────────────────────────
+
+function bestHandScoreOmaha(holeCards, communityCards) {
+  if (holeCards.length < 2 || communityCards.length < 3) {
+    return bestHandScore(holeCards.slice(0, 2), communityCards);
+  }
+  let best = -Infinity;
+  for (const hc of combinations(holeCards, 2)) {
+    for (const cc of combinations(communityCards, 3)) {
+      const s = evaluate5([...hc, ...cc]);
+      if (s > best) best = s;
+    }
+  }
+  return best;
+}
+
+function bestFiveCardsOmaha(holeCards, communityCards) {
+  if (holeCards.length < 2 || communityCards.length < 3) {
+    return bestFiveCards(holeCards.slice(0, 2), communityCards);
+  }
+  let best = null, bestScore = -Infinity;
+  for (const hc of combinations(holeCards, 2)) {
+    for (const cc of combinations(communityCards, 3)) {
+      const combo = [...hc, ...cc];
+      const s = evaluate5(combo);
+      if (s > bestScore) { bestScore = s; best = combo; }
+    }
+  }
+  return (best ?? [...holeCards.slice(0, 2), ...communityCards.slice(0, 3)])
+    .sort((a, b) => CARD_NUM[a.value] - CARD_NUM[b.value]);
+}
+
+function rankPlayersOmaha(playerHands, communityCards, playerIds) {
+  const scores = playerIds.map(id => ({
+    id,
+    score: bestHandScoreOmaha(playerHands[id] || [], communityCards),
+  }));
+  scores.sort((a, b) => a.score - b.score);
+  const result = {};
+  let i = 0;
+  while (i < scores.length) {
+    const score = scores[i].score;
+    let j = i;
+    while (j < scores.length && scores[j].score === score) j++;
+    for (let k = i; k < j; k++) {
+      result[scores[k].id] = { rank: i + 1, minRank: i + 1, maxRank: j };
+    }
+    i = j;
+  }
+  return result;
+}
+
+function handNameOmaha(holeCards, communityCards) {
+  if (holeCards.length < 2 || communityCards.length < 3) {
+    return handName(holeCards.slice(0, 2), communityCards);
+  }
+  const score = bestHandScoreOmaha(holeCards, communityCards);
+  const rank = Math.floor(score / 1e10);
+  const NAMES = ['Carte haute', 'Paire', 'Double paire', 'Brelan', 'Quinte', 'Couleur', 'Full', 'Carré', 'Quinte flush', 'Quinte flush royale'];
+  return NAMES[rank] ?? '?';
+}
+
+// ── Banana Split: 2 hole + up to 6 community (3 left pair + 3 right pair) ────
+// Uses the standard 5-card evaluator — best 5 from up to 8 cards.
+
+function _bananaRank(scores) {
+  scores.sort((a, b) => a.score - b.score);
+  const result = {};
+  let i = 0;
+  while (i < scores.length) {
+    const score = scores[i].score;
+    let j = i;
+    while (j < scores.length && scores[j].score === score) j++;
+    for (let k = i; k < j; k++) result[scores[k].id] = { rank: i + 1, minRank: i + 1, maxRank: j };
+    i = j;
+  }
+  return result;
+}
+
+function _bananaCommunity(betweenCards, idx, N) {
+  return [
+    ...(betweenCards[(idx - 1 + N) % N] ?? []),
+    ...(betweenCards[idx] ?? []),
+  ];
+}
+
+function rankPlayersBanana(playerHands, betweenCards, playerIds) {
+  const N = playerIds.length;
+  return _bananaRank(playerIds.map((id, idx) => ({
+    id,
+    score: bestHandScore(playerHands[id] || [], _bananaCommunity(betweenCards, idx, N)),
+  })));
+}
+
+function bestFiveCardsBanana(holeCards, community6) {
+  return bestFiveCards(holeCards, community6);
+}
+
+// ── Banana Omaha: 4 hole (must use exactly 2) + 6 community (must use exactly 3) ─
+
+function bestHandScoreBananaOmaha(holeCards, community6) {
+  if (holeCards.length < 2 || community6.length < 3) {
+    return bestHandScoreOmaha(holeCards.slice(0, 4), community6);
+  }
+  let best = -Infinity;
+  for (const hc of combinations(holeCards, 2)) {
+    for (const cc of combinations(community6, 3)) {
+      const s = evaluate5([...hc, ...cc]);
+      if (s > best) best = s;
+    }
+  }
+  return best;
+}
+
+function rankPlayersBananaOmaha(playerHands, betweenCards, playerIds) {
+  const N = playerIds.length;
+  return _bananaRank(playerIds.map((id, idx) => ({
+    id,
+    score: bestHandScoreBananaOmaha(playerHands[id] || [], _bananaCommunity(betweenCards, idx, N)),
+  })));
+}
+
+function handNameBananaOmaha(holeCards, community6) {
+  if (holeCards.length < 2 || community6.length < 3) return handNameOmaha(holeCards.slice(0, 4), community6);
+  const score = bestHandScoreBananaOmaha(holeCards, community6);
+  const rank = Math.floor(score / 1e10);
+  const NAMES = ['Carte haute','Paire','Double paire','Brelan','Quinte','Couleur','Full','Carré','Quinte flush','Quinte flush royale'];
+  return NAMES[rank] ?? '?';
+}
+
+function bestFiveCardsBananaOmaha(holeCards, community6) {
+  if (holeCards.length < 2 || community6.length < 3) return bestFiveCardsOmaha(holeCards.slice(0, 4), community6);
+  let best = null, bestScore = -Infinity;
+  for (const hc of combinations(holeCards, 2)) {
+    for (const cc of combinations(community6, 3)) {
+      const combo = [...hc, ...cc];
+      const s = evaluate5(combo);
+      if (s > bestScore) { bestScore = s; best = combo; }
+    }
+  }
+  return (best ?? [...holeCards.slice(0, 2), ...community6.slice(0, 3)])
+    .sort((a, b) => CARD_NUM[a.value] - CARD_NUM[b.value]);
+}
+
+// Rankings with precomputed community per player (banana modes with left players)
+function rankPlayersWithCommunities(playerHands, communityMap, playerIds) {
+  return _bananaRank(playerIds.map(id => ({
+    id, score: bestHandScore(playerHands[id] || [], communityMap[id] || []),
+  })));
+}
+
+function rankPlayersBananaOmahaWithCommunities(playerHands, communityMap, playerIds) {
+  return _bananaRank(playerIds.map(id => ({
+    id, score: bestHandScoreBananaOmaha(playerHands[id] || [], communityMap[id] || []),
+  })));
+}
+
+module.exports = { rankPlayers, handName, bestFiveCards, rankPlayersOmaha, handNameOmaha, bestFiveCardsOmaha, rankPlayersBanana, bestFiveCardsBanana, rankPlayersBananaOmaha, handNameBananaOmaha, bestFiveCardsBananaOmaha, rankPlayersWithCommunities, rankPlayersBananaOmahaWithCommunities };
