@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { socket } from '../socket';
 import PokerCard from '../components/PokerCard';
+import { useTheme } from '../ThemeContext';
 import './GameScreen.css';
 
 const PHASE_LABEL = { preflop: 'Préflop', flop: 'Flop', turn: 'Turn', river: 'River' };
@@ -86,9 +87,9 @@ function handPos([sx, sy], isBottomSeat) {
   ];
 }
 
-function initialPos(token, total) {
+function initialPos(token, total, isBanana = false) {
   const spread = Math.min(5, 52 / total);
-  return { x: +(50 + (token - 1 - (total - 1) / 2) * spread).toFixed(1), y: 63 };
+  return { x: +(50 + (token - 1 - (total - 1) / 2) * spread).toFixed(1), y: isBanana ? 50 : 63 };
 }
 
 // ── Malus chip with portal tooltip ───────────────────────────────────────────
@@ -356,7 +357,12 @@ function EndOverlay({ state, revealOrder, community, completedPhases, isHost, cr
                 const v = voteState?.votes?.[p.id];
                 return (
                   <div key={p.id} className="vote-live-row">
-                    <span className="vote-live-name">{p.name}</span>
+                    <span className="vote-live-name">
+                      {p.emoji && p.emoji.startsWith('/')
+                        ? <img src={p.emoji} alt="" style={{ width: 20, height: 20, objectFit: 'cover', borderRadius: 3, verticalAlign: 'middle', marginRight: 3 }} />
+                        : p.emoji ? `${p.emoji} ` : ''}
+                      {p.name}
+                    </span>
                     <span className={`vote-live-val${v ? ' voted' : ''}`}>{v ?? '…'}</span>
                   </div>
                 );
@@ -408,6 +414,7 @@ export default function GameScreen({ gameState, playerName, onPlaceToken, onRele
   const [voteResultEv, setVoteResultEv] = useState(null);
   const prevCommunityLenRef = useRef(0);
 
+  const { table: tableTheme } = useTheme();
   if (!gameState) return <div className="screen"><p style={{ color: 'var(--muted)' }}>Connexion…</p></div>;
 
   const { state, phase, phaseIndex, color, players, myHand, handSizes, community, betweenCards, playerZones, completedPhases, revealOrder, voteState, n, countdownStartedAt, mode, activeMalus, lockedZones, creatorId } = gameState;
@@ -458,8 +465,9 @@ export default function GameScreen({ gameState, playerName, onPlaceToken, onRele
   // Reset token positions each phase
   useEffect(() => {
     if (!n || isOver) return;
+    const banana = gameState?.mode === 'banana' || gameState?.mode === 'banana-omaha';
     const pos = {};
-    for (let t = 1; t <= n; t++) pos[t] = initialPos(t, n);
+    for (let t = 1; t <= n; t++) pos[t] = initialPos(t, n, banana);
     setLocalPos(pos);
   }, [phaseIndex, state, n]);
 
@@ -587,7 +595,7 @@ export default function GameScreen({ gameState, playerName, onPlaceToken, onRele
     }
     const lp = localPos[token];
     if (lp) return [lp.x, lp.y];
-    const p = initialPos(token, n);
+    const p = initialPos(token, n, gameState?.mode === 'banana' || gameState?.mode === 'banana-omaha');
     return [p.x, p.y];
   }
 
@@ -605,7 +613,7 @@ export default function GameScreen({ gameState, playerName, onPlaceToken, onRele
         )}
 
         {/* Felt oval */}
-        <div className="poker-table">
+        <div className={`poker-table${tableTheme !== 'classic' ? ` poker-table-${tableTheme}` : ''}`}>
           <div className="table-community">
             {/* Active malus cards above community */}
             {(activeMalus ?? []).length > 0 && (
@@ -637,8 +645,10 @@ export default function GameScreen({ gameState, playerName, onPlaceToken, onRele
             const posA = positions[bc.playerAIdx];
             const posB = positions[bc.playerBIdx];
             if (!posA || !posB) return null;
-            const left = (posA[0] + posB[0]) / 2;
-            const top  = (posA[1] + posB[1]) / 2;
+            const midX = (posA[0] + posB[0]) / 2;
+            const midY = (posA[1] + posB[1]) / 2;
+            const left = midX + (midX - 50) * 0.38;
+            const top  = midY + (midY - 50) * 0.38;
             return (
               <div key={i} style={{ position: 'absolute', left: `${left}%`, top: `${top}%`, transform: 'translate(-50%,-50%)', zIndex: 5, display: 'flex', gap: 2 }}>
                 {Array.from({ length: bc.total ?? 3 }, (_, j) => (
@@ -650,19 +660,43 @@ export default function GameScreen({ gameState, playerName, onPlaceToken, onRele
         </div>
 
 
-        {/* Hands — mine face-up, others face-down, all pushed outward. Label always below cards. */}
+        {/* Hands — mine face-up, others face-down. Label above for north players, below for south. */}
         {ordered.map((p, i) => {
           if (!n && !p.left) return null;
           const isMe = p.id === myId;
           const [hx, hy] = handPos(positions[i], i === 0);
+          const isNorth = hy < 50;
           const history = (completedPhases ?? [])
             .map(cp => ({ color: cp.color, token: cp.zones[p.id] }))
             .filter(h => h.token != null);
 
           if (isOver) return null;
 
+          const labelEl = (
+            <div className={`hand-label ${isMe ? 'hand-label-me' : ''}`}>
+              {(p.emoji || avatarEmojis[i]).startsWith('/')
+                ? <img src={p.emoji} alt="" className="label-avatar-img" />
+                : <span className="label-avatar">{p.emoji || avatarEmojis[i]}</span>}
+              {p.name}{isMe && <span className="label-you"> (toi)</span>}
+              {p.left && <span style={{ color: 'var(--red)', fontSize: '0.7rem', marginLeft: 4 }}>(parti)</span>}
+              {isHost && !isMe && !p.left && (
+                <button
+                  onClick={() => onKick(p.id)}
+                  style={{
+                    marginLeft: 6, background: 'rgba(200,16,46,0.25)',
+                    border: '1px solid rgba(200,16,46,0.5)', borderRadius: 4,
+                    color: 'var(--red)', cursor: 'pointer', fontSize: '0.65rem',
+                    padding: '1px 5px', fontWeight: 700, lineHeight: 1.4,
+                  }}
+                  title={`Expulser ${p.name}`}
+                >✕</button>
+              )}
+            </div>
+          );
+
           return (
             <div key={`hand-${p.id}`} className="player-hand" style={{ left: `${hx}%`, top: `${hy}%`, opacity: p.left ? 0.4 : 1 }}>
+              {isNorth && labelEl}
               {!p.left && (
                 <div className="hand-cards">
                   {isMe
@@ -683,23 +717,7 @@ export default function GameScreen({ gameState, playerName, onPlaceToken, onRele
                   ))}
                 </div>
               )}
-              <div className={`hand-label ${isMe ? 'hand-label-me' : ''}`}>
-                <span className="label-avatar">{avatarEmojis[i]}</span>
-                {p.name}{isMe && <span className="label-you"> (toi)</span>}
-                {p.left && <span style={{ color: 'var(--red)', fontSize: '0.7rem', marginLeft: 4 }}>(parti)</span>}
-                {isHost && !isMe && !p.left && (
-                  <button
-                    onClick={() => onKick(p.id)}
-                    style={{
-                      marginLeft: 6, background: 'rgba(200,16,46,0.25)',
-                      border: '1px solid rgba(200,16,46,0.5)', borderRadius: 4,
-                      color: 'var(--red)', cursor: 'pointer', fontSize: '0.65rem',
-                      padding: '1px 5px', fontWeight: 700, lineHeight: 1.4,
-                    }}
-                    title={`Expulser ${p.name}`}
-                  >✕</button>
-                )}
-              </div>
+              {!isNorth && labelEl}
             </div>
           );
         })}
@@ -717,7 +735,6 @@ export default function GameScreen({ gameState, playerName, onPlaceToken, onRele
               style={{ left: `${zx}%`, top: `${zy}%` }}
             >
               {claimed != null && <Chip value={claimed} color={color} size="sm" />}
-              <span className="zone-owner">{p.name}</span>
             </div>
           );
         })}

@@ -100,6 +100,103 @@
 .poker-card.small .cs { font-size: 1.1rem; }
 .poker-card.large .cs { font-size: 2rem; }
 
+/* ── Kawaii card theme ──────────────────────────────────────────────────────── */
+.poker-card.kawaii-card {
+  background: linear-gradient(150deg, #fff5fb 0%, #ffe8f4 100%);
+  border-color: #ffb3d9;
+  box-shadow: 0 2px 8px rgba(255,100,180,0.22);
+}
+.poker-card.kawaii-card.kawaii-pink { color: #cc0062; }
+.poker-card.kawaii-card.kawaii-purple { color: #7700bb; }
+.poker-card.kawaii-card.card-highlight {
+  box-shadow: 0 0 0 2.5px #ff0080, 0 2px 8px rgba(255,0,128,0.4);
+  border-color: #ff0080;
+}
+
+.poker-card.back.kawaii-back {
+  background: linear-gradient(135deg, #ffb3d9 0%, #ff69b4 45%, #d940a0 100%);
+  border: 2px solid #ff9ece;
+}
+.poker-card.back.kawaii-back::before { border-color: rgba(255,210,235,0.55); }
+.poker-card.back.kawaii-back::after {
+  background-image:
+    repeating-linear-gradient( 45deg, rgba(255,255,255,0.07) 0px, rgba(255,255,255,0.07) 2px, transparent 2px, transparent 9px),
+    repeating-linear-gradient(-45deg, rgba(255,255,255,0.07) 0px, rgba(255,255,255,0.07) 2px, transparent 2px, transparent 9px);
+}
+.poker-card.back.kawaii-back .back-icon {
+  color: rgba(255,255,255,0.95);
+  text-shadow: 0 0 16px rgba(255,150,210,0.7), 0 2px 4px rgba(0,0,0,0.2);
+}
+.poker-card.back.kawaii-back.small .back-icon { font-size: 1.3rem; }
+.poker-card.back.kawaii-back.large .back-icon { font-size: 2.8rem; }
+
+/* ── Dark card theme ──────────────────────────────────────────────────────── */
+.poker-card.dark-card {
+  background: linear-gradient(150deg, #141414 0%, #0a0a0a 100%);
+  border: 1px solid #2a2a2a;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.85);
+}
+.poker-card.dark-card.dark-red   { color: #ff5577; }
+.poker-card.dark-card.dark-black { color: #d4af37; }
+.poker-card.dark-card.card-highlight { box-shadow: 0 0 0 2.5px #d4af37, 0 2px 8px rgba(212,175,55,0.45); border-color: #d4af37; }
+
+.poker-card.back.dark-back {
+  background: linear-gradient(150deg, #1c1c1c 0%, #000 100%);
+  border: 2px solid #d4af37;
+}
+.poker-card.back.dark-back::before { border-color: rgba(212,175,55,0.4); }
+.poker-card.back.dark-back::after {
+  background-image:
+    repeating-linear-gradient( 45deg, rgba(212,175,55,0.04) 0px, rgba(212,175,55,0.04) 2px, transparent 2px, transparent 9px),
+    repeating-linear-gradient(-45deg, rgba(212,175,55,0.04) 0px, rgba(212,175,55,0.04) 2px, transparent 2px, transparent 9px);
+}
+.poker-card.back.dark-back .back-icon { color: rgba(212,175,55,0.9); text-shadow: 0 0 16px rgba(212,175,55,0.6), 0 2px 5px rgba(0,0,0,0.8); }
+.poker-card.back.dark-back.small .back-icon { font-size: 1.5rem; }
+.poker-card.back.dark-back.large .back-icon { font-size: 3.2rem; }
+
+/* ── Coloré card theme ────────────────────────────────────────────────────── */
+.poker-card.color-card.color-spade   { color: #1a56db; }
+.poker-card.color-card.color-heart   { color: #c8102e; }
+.poker-card.color-card.color-diamond { color: #d44f00; }
+.poker-card.color-card.color-club    { color: #1a7a38; }
+.poker-card.color-card.card-highlight { box-shadow: 0 0 0 2.5px #1a56db, 0 2px 6px rgba(0,0,0,0.45); }
+
+.poker-card.back.color-back {
+  background: conic-gradient(from 45deg, #1a56db 0deg 90deg, #c8102e 90deg 180deg, #d44f00 180deg 270deg, #1a7a38 270deg 360deg);
+  border: 2px solid #fff;
+}
+.poker-card.back.color-back::before { border-color: rgba(255,255,255,0.55); }
+.poker-card.back.color-back .back-icon { color: rgba(255,255,255,0.95); text-shadow: 0 2px 8px rgba(0,0,0,0.65); }
+.poker-card.back.color-back.small .back-icon { font-size: 1.5rem; }
+.poker-card.back.color-back.large .back-icon { font-size: 3.2rem; }
+
+/* ── Pixel card theme ──────────────────────────────────────────────────────── */
+.poker-card.pixel-card {
+  background: #0d0208;
+  border: 2px solid #00ff41;
+  border-radius: 3px;
+  box-shadow: 0 0 8px rgba(0,255,65,0.25), 0 2px 4px rgba(0,0,0,0.8);
+}
+.poker-card.pixel-card .cv,
+.poker-card.pixel-card .cs { font-family: 'Courier New', Courier, monospace; }
+.poker-card.pixel-card.pixel-green { color: #00ff41; }
+.poker-card.pixel-card.card-highlight { box-shadow: 0 0 0 2px #00ff41, 0 0 14px rgba(0,255,65,0.55); }
+
+.poker-card.back.pixel-back {
+  background: #0d0208;
+  border: 2px solid #00ff41;
+  border-radius: 3px;
+}
+.poker-card.back.pixel-back::before { border-color: rgba(0,255,65,0.4); }
+.poker-card.back.pixel-back::after {
+  background-image:
+    repeating-linear-gradient(0deg,  rgba(0,255,65,0.05) 0px, rgba(0,255,65,0.05) 1px, transparent 1px, transparent 5px),
+    repeating-linear-gradient(90deg, rgba(0,255,65,0.05) 0px, rgba(0,255,65,0.05) 1px, transparent 1px, transparent 5px);
+}
+.poker-card.back.pixel-back .back-icon { color: rgba(0,255,65,0.9); font-family: 'Courier New', monospace; text-shadow: 0 0 12px rgba(0,255,65,0.65); }
+.poker-card.back.pixel-back.small .back-icon { font-size: 1.5rem; }
+.poker-card.back.pixel-back.large .back-icon { font-size: 3.2rem; }
+
 /* ── Deal animation ─────────────────────────────────────────────────────────── */
 @keyframes card-deal {
   0% {

@@ -18,7 +18,7 @@ const MALUS_LIST = [
   { id: 'analyse-jeu',   icon: '🕵️', name: 'Analyse de Jeu', description: "Avant la révélation du dernier joueur, le gang vote sur sa combinaison de main. Si la majorité se trompe, c'est perdu." },
 ];
 
-export default function Lobby({ roomId, roomData, playerName, onReady, onQuit, onSetMode, onToggleMalus, onKick, error }) {
+export default function Lobby({ roomId, roomData, playerName, onReady, onQuit, onSetMode, onToggleMalus, onToggleExcluded, onKick, error }) {
   const [ready, setReady] = useState(false);
   const [hoveredMalus, setHoveredMalus] = useState(null);
 
@@ -28,10 +28,11 @@ export default function Lobby({ roomId, roomData, playerName, onReady, onQuit, o
     onReady(next);
   }
 
-  const players      = roomData?.players ?? [];
-  const mode         = roomData?.mode ?? 'texas';
-  const defaultMalus = roomData?.defaultMalus ?? [];
-  const isHost       = playerName === roomData?.creatorName;
+  const players        = roomData?.players ?? [];
+  const mode           = roomData?.mode ?? 'texas';
+  const defaultMalus   = roomData?.defaultMalus ?? [];
+  const excludedMalus  = roomData?.excludedMalus ?? [];
+  const isHost         = playerName === roomData?.creatorName;
 
   return (
     <div className="screen">
@@ -73,18 +74,33 @@ export default function Lobby({ roomId, roomData, playerName, onReady, onQuit, o
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             {MALUS_LIST.map(m => {
-              const active = defaultMalus.some(dm => dm.id === m.id);
+              const active   = defaultMalus.some(dm => dm.id === m.id);
+              const excluded = excludedMalus.includes(m.id);
               return (
-                <button
-                  key={m.id}
-                  className={`btn ${active ? 'btn-primary' : 'btn-secondary'}`}
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', fontSize: '0.82rem', textAlign: 'left', position: 'relative', opacity: isHost ? 1 : 0.5, cursor: isHost ? 'pointer' : 'default' }}
-                  onClick={() => isHost && onToggleMalus(m.id)}
-                  onMouseEnter={() => setHoveredMalus(m.id)}
-                  onMouseLeave={() => setHoveredMalus(null)}
-                >
-                  <span style={{ fontSize: '1.15rem', flexShrink: 0 }}>{m.icon}</span>
-                  <span style={{ fontWeight: active ? 700 : 400 }}>{m.name}</span>
+                <div key={m.id} style={{ display: 'flex', gap: 6, position: 'relative' }}>
+                  <button
+                    className={`btn ${active ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', fontSize: '0.82rem', textAlign: 'left', opacity: (isHost && !excluded) ? 1 : excluded ? 0.35 : 0.5, cursor: isHost ? 'pointer' : 'default' }}
+                    onClick={() => isHost && !excluded && onToggleMalus(m.id)}
+                    onMouseEnter={() => setHoveredMalus(m.id)}
+                    onMouseLeave={() => setHoveredMalus(null)}
+                  >
+                    <span style={{ fontSize: '1.15rem', flexShrink: 0 }}>{m.icon}</span>
+                    <span style={{ fontWeight: active ? 700 : 400, textDecoration: excluded ? 'line-through' : 'none' }}>{m.name}</span>
+                  </button>
+                  {isHost && (
+                    <button
+                      title={excluded ? 'Exclu du tirage — cliquer pour réactiver' : 'Dans le tirage — cliquer pour exclure'}
+                      onClick={() => onToggleExcluded(m.id)}
+                      style={{
+                        flexShrink: 0, width: 36, padding: 0,
+                        background: excluded ? 'rgba(200,16,46,0.18)' : 'rgba(255,255,255,0.05)',
+                        border: `1px solid ${excluded ? 'rgba(200,16,46,0.5)' : 'var(--border)'}`,
+                        borderRadius: 8, cursor: 'pointer', fontSize: '1rem',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}
+                    >{excluded ? '🚫' : '✓'}</button>
+                  )}
                   {hoveredMalus === m.id && (
                     <div style={{
                       position: 'absolute', bottom: 'calc(100% + 8px)', left: 0,
@@ -96,7 +112,7 @@ export default function Lobby({ roomId, roomData, playerName, onReady, onQuit, o
                       {m.description}
                     </div>
                   )}
-                </button>
+                </div>
               );
             })}
           </div>
@@ -118,7 +134,10 @@ export default function Lobby({ roomId, roomData, playerName, onReady, onQuit, o
               background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)',
               borderRadius: 8, padding: '10px 14px',
             }}>
-              <span style={{ fontWeight: 600 }}>
+              <span style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                {(p.emoji ?? '').startsWith('/')
+                  ? <img src={p.emoji} alt="" style={{ width: 52, height: 52, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }} />
+                  : <span style={{ fontSize: '2.2rem', lineHeight: 1 }}>{p.emoji ?? '🐱'}</span>}
                 {p.name} {p.name === playerName && <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(toi)</span>}
               </span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

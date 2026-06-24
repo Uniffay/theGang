@@ -93,6 +93,7 @@ class Game {
     this.mode = 'texas'; // 'texas' | 'omaha'
     this.activeMalus = [];
     this.defaultMalus = []; // malus pre-selected in lobby
+    this.excludedMalus = new Set(); // malus banned from the draw pool
     this.lockedZones = {}; // { playerId: token } — token locked in that zone
     this.deck = []; // remaining cards after deal
     this.betweenCards = []; // banana split: card between players[i] and players[(i+1)%N]
@@ -115,6 +116,16 @@ class Game {
     }
   }
 
+  toggleExcludedMalus(id) {
+    if (this.state !== 'lobby') return;
+    if (this.excludedMalus.has(id)) {
+      this.excludedMalus.delete(id);
+    } else {
+      this.excludedMalus.add(id);
+      this.defaultMalus = this.defaultMalus.filter(m => m.id !== id);
+    }
+  }
+
   hasMalus(id) { return this.activeMalus.some(m => m.id === id); }
 
   get phase() { return PHASES[this.phaseIndex]; }
@@ -124,7 +135,7 @@ class Game {
 
   // ── Lobby ──────────────────────────────────────────────
 
-  addPlayer(id, name) {
+  addPlayer(id, name, emoji = '🐱') {
     // Rejoin: player with same name exists but is inactive (disconnected during game)
     const existing = this.players.find(p => p.name === name);
     if (existing) {
@@ -132,12 +143,13 @@ class Game {
       const oldId = existing.id;
       existing.id = id;
       existing.active = true;
+      existing.emoji = emoji;
       this._migrateId(oldId, id);
       return true;
     }
     // New join: only in lobby
     if (this.state !== 'lobby' || this.n >= 8) return false;
-    this.players.push({ id, name, ready: false, active: true, left: false });
+    this.players.push({ id, name, emoji, ready: false, active: true, left: false });
     return true;
   }
 
@@ -571,7 +583,7 @@ class Game {
     const won = this.state === 'won';
     let newMalus = null;
     if (won) {
-      const available = MALUS_DECK.filter(m => !this.activeMalus.some(a => a.id === m.id));
+      const available = MALUS_DECK.filter(m => !this.activeMalus.some(a => a.id === m.id) && !this.excludedMalus.has(m.id));
       if (available.length > 0) {
         newMalus = available[Math.floor(Math.random() * available.length)];
         this.activeMalus.push(newMalus);
@@ -586,6 +598,7 @@ class Game {
   resetZero() {
     this.activeMalus = [];
     this.defaultMalus = [];
+    this.excludedMalus = new Set();
     this.lockedZones = {};
     this.betweenCards = [];
     this.voteState = null;
@@ -644,6 +657,7 @@ class Game {
       mode: this.mode,
       activeMalus: this.activeMalus,
       defaultMalus: this.defaultMalus,
+      excludedMalus: [...this.excludedMalus],
       lockedZones: { ...this.lockedZones },
       creatorId: this.state === 'lobby' ? this.players[0]?.id : this.hostId,
       myHand: this.hands[forPlayerId] ?? [],

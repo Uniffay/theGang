@@ -32,6 +32,7 @@ function broadcastRoom(roomId) {
     mode: room.mode,
     creatorName: room.players[0]?.name,
     defaultMalus: room.defaultMalus,
+    excludedMalus: [...room.excludedMalus],
   });
 }
 
@@ -78,9 +79,9 @@ function cancelCountdown(roomId) {
 io.on('connection', (socket) => {
   let currentRoom = null;
 
-  socket.on('join-room', ({ roomId, name }) => {
+  socket.on('join-room', ({ roomId, name, emoji }) => {
     const room = getOrCreateRoom(roomId);
-    if (!room.addPlayer(socket.id, name)) {
+    if (!room.addPlayer(socket.id, name, emoji ?? '🐱')) {
       socket.emit('error', { message: 'Impossible de rejoindre cette salle.' });
       return;
     }
@@ -100,6 +101,14 @@ io.on('connection', (socket) => {
     const room = getOrCreateRoom(currentRoom);
     if (room.players[0]?.id !== socket.id) return; // host only
     room.toggleDefaultMalus(id);
+    broadcastRoom(currentRoom);
+  });
+
+  socket.on('toggle-excluded-malus', ({ id }) => {
+    if (!currentRoom) return;
+    const room = getOrCreateRoom(currentRoom);
+    if (room.players[0]?.id !== socket.id) return; // host only
+    room.toggleExcludedMalus(id);
     broadcastRoom(currentRoom);
   });
 
@@ -209,6 +218,16 @@ io.on('connection', (socket) => {
     } else {
       broadcastAll(currentRoom);
     }
+  });
+
+  socket.on('update-emoji', ({ emoji }) => {
+    if (!currentRoom) return;
+    const room = getOrCreateRoom(currentRoom);
+    const p = room.players.find(pl => pl.id === socket.id);
+    if (!p) return;
+    p.emoji = emoji;
+    if (room.state === 'lobby') broadcastRoom(currentRoom);
+    else broadcastAll(currentRoom);
   });
 
   socket.on('host-action', ({ action }) => {

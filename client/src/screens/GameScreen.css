@@ -117,6 +117,157 @@
   pointer-events: none;
 }
 
+/* ── Kawaii table ──────────────────────────────────────────────────────────── */
+.poker-table-kawaii {
+  background:
+    radial-gradient(ellipse at 50% -25%, rgba(255,180,220,0.28) 0%, transparent 60%),
+    radial-gradient(ellipse at 6%  55%,  rgba(200,80,160,0.07)  0%, transparent 45%),
+    radial-gradient(ellipse at 50% 42%,  #b5006a 0%, #7a0048 34%, #420028 63%, #1a0010 100%);
+  box-shadow:
+    inset 0 0 130px rgba(0,0,0,0.65),
+    inset 0 22px 80px rgba(0,0,0,0.40),
+    0 0 0 2px rgba(255,200,230,0.88),
+    0 0 0 6px rgba(255,150,210,0.95),
+    0 0 0 13px #c04080,
+    0 0 0 20px #7a1850,
+    0 0 0 25px #3d0828,
+    0 0 0 28px #160005,
+    0 40px 130px rgba(0,0,0,0.99),
+    0 14px 50px rgba(0,0,0,0.82),
+    0 -6px 22px rgba(255,80,180,0.15);
+}
+.poker-table-kawaii::before {
+  border-color: rgba(255,160,210,0.42);
+  box-shadow: 0 0 8px rgba(255,120,190,0.18), inset 0 0 8px rgba(255,120,190,0.1);
+}
+.poker-table-kawaii::after {
+  content: '✿  ♡  ✦  ♡  ✿';
+  position: absolute;
+  bottom: 14%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.8rem;
+  letter-spacing: 10px;
+  color: rgba(255,180,220,0.35);
+  pointer-events: none;
+  z-index: 0;
+  white-space: nowrap;
+}
+
+/* ── Luxe Noir table ──────────────────────────────────────────────────────── */
+.poker-table-noir {
+  background:
+    radial-gradient(ellipse at 50% -25%, rgba(212,175,55,0.15) 0%, transparent 55%),
+    radial-gradient(ellipse at 50% 42%, #1c1c1c 0%, #0d0d0d 40%, #000 100%);
+  box-shadow:
+    inset 0 0 130px rgba(0,0,0,0.85),
+    inset 0 22px 80px rgba(0,0,0,0.60),
+    0 0 0 2px rgba(212,175,55,0.92),
+    0 0 0 6px rgba(212,175,55,0.80),
+    0 0 0 13px #8B6914,
+    0 0 0 20px #4a360a,
+    0 0 0 25px #1c1205,
+    0 0 0 28px #0a0800,
+    0 40px 130px rgba(0,0,0,0.99),
+    0 14px 50px rgba(0,0,0,0.82),
+    0 -6px 22px rgba(212,175,55,0.12);
+}
+.poker-table-noir::before { border-color: rgba(212,175,55,0.32); }
+
+/* ── Vegas Rouge table ──────────────────────────────────────────────────────── */
+.poker-table-rouge {
+  background:
+    radial-gradient(ellipse at 50% -25%, rgba(255,80,80,0.18) 0%, transparent 55%),
+    radial-gradient(ellipse at 50% 42%, #7a0000 0%, #4a0000 40%, #1f0000 100%);
+  box-shadow:
+    inset 0 0 130px rgba(0,0,0,0.75),
+    inset 0 22px 80px rgba(0,0,0,0.48),
+    0 0 0 2px rgba(212,175,55,0.88),
+    0 0 0 6px rgba(200,150,40,0.85),
+    0 0 0 13px #8B3010,
+    0 0 0 20px #5a1a05,
+    0 0 0 25px #280a00,
+    0 0 0 28px #0f0300,
+    0 40px 130px rgba(0,0,0,0.99),
+    0 14px 50px rgba(0,0,0,0.82),
+    0 -6px 22px rgba(200,50,50,0.18);
+}
+.poker-table-rouge::before { border-color: rgba(212,175,55,0.28); }
+
+/* ── Océan table ──────────────────────────────────────────────────────────── */
+.poker-table-ocean {
+  background:
+    radial-gradient(ellipse at 50% -25%, rgba(0,200,220,0.2) 0%, transparent 55%),
+    radial-gradient(ellipse at 50% 42%, #005f73 0%, #003845 40%, #001820 100%);
+  box-shadow:
+    inset 0 0 130px rgba(0,0,0,0.72),
+    inset 0 22px 80px rgba(0,0,0,0.45),
+    0 0 0 2px rgba(0,220,240,0.82),
+    0 0 0 6px rgba(0,180,200,0.78),
+    0 0 0 13px #006677,
+    0 0 0 20px #003d48,
+    0 0 0 25px #001520,
+    0 0 0 28px #000608,
+    0 40px 130px rgba(0,0,0,0.99),
+    0 14px 50px rgba(0,0,0,0.82),
+    0 -6px 22px rgba(0,180,200,0.18);
+}
+.poker-table-ocean::before { border-color: rgba(0,200,220,0.32); }
+
+/* ── Violet Mystique table ────────────────────────────────────────────────── */
+.poker-table-violet {
+  background:
+    radial-gradient(ellipse at 50% -25%, rgba(160,60,255,0.22) 0%, transparent 55%),
+    radial-gradient(ellipse at 50% 42%, #4a0080 0%, #280045 40%, #100020 100%);
+  box-shadow:
+    inset 0 0 130px rgba(0,0,0,0.78),
+    inset 0 22px 80px rgba(0,0,0,0.50),
+    0 0 0 2px rgba(180,100,255,0.88),
+    0 0 0 6px rgba(150,70,220,0.82),
+    0 0 0 13px #6600aa,
+    0 0 0 20px #380060,
+    0 0 0 25px #180028,
+    0 0 0 28px #070010,
+    0 40px 130px rgba(0,0,0,0.99),
+    0 14px 50px rgba(0,0,0,0.82),
+    0 -6px 22px rgba(150,50,255,0.2);
+}
+.poker-table-violet::before { border-color: rgba(180,100,255,0.32); }
+
+/* ── Matrix table ─────────────────────────────────────────────────────────── */
+.poker-table-matrix {
+  background:
+    radial-gradient(ellipse at 50% -25%, rgba(0,255,65,0.1) 0%, transparent 55%),
+    radial-gradient(ellipse at 50% 42%, #001a00 0%, #000d00 40%, #000 100%);
+  box-shadow:
+    inset 0 0 130px rgba(0,0,0,0.90),
+    inset 0 22px 80px rgba(0,0,0,0.65),
+    0 0 0 2px rgba(0,255,65,0.88),
+    0 0 0 6px rgba(0,200,50,0.75),
+    0 0 0 13px #003300,
+    0 0 0 20px #001a00,
+    0 0 0 25px #000d00,
+    0 0 0 28px #000,
+    0 40px 130px rgba(0,0,0,0.99),
+    0 14px 50px rgba(0,0,0,0.85),
+    0 -6px 22px rgba(0,200,50,0.22);
+}
+.poker-table-matrix::before { border-color: rgba(0,255,65,0.28); }
+.poker-table-matrix::after {
+  content: '01  10  01  10  01';
+  position: absolute;
+  bottom: 14%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.72rem;
+  letter-spacing: 9px;
+  color: rgba(0,255,65,0.22);
+  font-family: 'Courier New', monospace;
+  pointer-events: none;
+  z-index: 0;
+  white-space: nowrap;
+}
+
 /* Decorative gold inlay ring on felt */
 .poker-table::before {
   content: '';
@@ -462,7 +613,8 @@
   pointer-events: auto;
 }
 .hand-label-me { color: var(--accent); border-color: rgba(232,200,58,0.4); font-weight: 700; }
-.label-avatar { font-size: 1.1rem; line-height: 1; flex-shrink: 0; }
+.label-avatar { font-size: 2.2rem; line-height: 1; flex-shrink: 0; }
+.label-avatar-img { width: 52px; height: 52px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
 
 /* ── End overlay split layout (Jugement Final) ──────────────────────────────── */
 .end-box-split {
