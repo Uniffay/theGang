@@ -140,6 +140,14 @@ io.on('connection', (socket) => {
     broadcastAll(currentRoom);
   });
 
+  socket.on('resolve-joker', ({ chosenIdx }) => {
+    if (!currentRoom) return;
+    const room = getOrCreateRoom(currentRoom);
+    const result = room.resolveJoker(socket.id, chosenIdx);
+    if (result?.error) { socket.emit('error', result); return; }
+    broadcastAll(currentRoom);
+  });
+
   socket.on('token-moved', ({ token, x, y, dragger }) => {
     socket.to(currentRoom).emit('token-moved', { token, x, y, dragger });
   });

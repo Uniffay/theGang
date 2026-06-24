@@ -1,4 +1,4 @@
-const { rankPlayers, handName, bestFiveCards, rankPlayersOmaha, handNameOmaha, bestFiveCardsOmaha, rankPlayersBanana, bestFiveCardsBanana, rankPlayersBananaOmaha, handNameBananaOmaha, bestFiveCardsBananaOmaha, rankPlayersWithCommunities, rankPlayersBananaOmahaWithCommunities } = require('./poker');
+const { rankPlayers, handName, bestFiveCards, rankPlayersOmaha, handNameOmaha, bestFiveCardsOmaha, rankPlayersBanana, bestFiveCardsBanana, rankPlayersBananaOmaha, handNameBananaOmaha, bestFiveCardsBananaOmaha, rankPlayersWithCommunities, rankPlayersBananaOmahaWithCommunities, bestHandScore, bestHandScoreOmaha, bestHandScoreBananaOmaha } = require('./poker');
 
 const PHASES = ['preflop', 'flop', 'turn', 'river'];
 
@@ -62,6 +62,8 @@ const VALUES = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'
 function createDeck() {
   const d = [];
   for (const suit of SUITS) for (const value of VALUES) d.push({ value, suit });
+  d.push({ value: 'Jo', suit: '★', isJoker: true });
+  d.push({ value: 'Jo', suit: '★', isJoker: true });
   return d;
 }
 
@@ -72,6 +74,62 @@ function shuffle(arr) {
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
+}
+
+// Draw n non-joker cards from the front of a deck array (mutates deck)
+function drawNonJoker(deck, n) {
+  const drawn = [];
+  while (drawn.length < n && deck.length > 0) {
+    const card = deck.shift();
+    if (!card.isJoker) drawn.push(card);
+  }
+  return drawn;
+}
+
+// Expand joker slots in a community array into all possible flat card arrays
+function expandCommunity(community) {
+  const result = [[]];
+  for (const c of community) {
+    if (c && c.isJokerSlot && c.cards?.length) {
+      const next = [];
+      for (const partial of result)
+        for (const card of c.cards) next.push([...partial, card]);
+      result.length = 0;
+      result.push(...next);
+    } else {
+      for (const partial of result) partial.push(c);
+    }
+  }
+  return result;
+}
+
+const hasJokerSlots = arr => arr.some(c => c?.isJokerSlot);
+
+// Find the community expansion (flat array) that maximises scoreFn for the given hand
+function bestCommExpansion(hand, community, scoreFn) {
+  if (!hasJokerSlots(community)) return community;
+  let best = null, bestScore = -Infinity;
+  for (const c of expandCommunity(community)) {
+    const score = scoreFn(hand, c);
+    if (score > bestScore) { bestScore = score; best = c; }
+  }
+  return best;
+}
+
+// Rank players when community may contain joker slots
+function rankWithJokerSlots(playerIds, scoreFn) {
+  const scores = playerIds.map(id => ({ id, score: scoreFn(id) }));
+  scores.sort((a, b) => a.score - b.score);
+  const result = {};
+  let i = 0;
+  while (i < scores.length) {
+    const score = scores[i].score;
+    let j = i;
+    while (j < scores.length && scores[j].score === score) j++;
+    for (let k = i; k < j; k++) result[scores[k].id] = { rank: i + 1, minRank: i + 1, maxRank: j };
+    i = j;
+  }
+  return result;
 }
 
 class Game {
@@ -98,6 +156,7 @@ class Game {
     this.deck = []; // remaining cards after deal
     this.betweenCards = []; // banana split: card between players[i] and players[(i+1)%N]
     this.voteState = null; // { targetId, votes: { playerId: value } }
+    this.jokerChoices = {}; // { playerId: [{ handIdx, cards: [c1,c2] }] } — pending joker choices
   }
 
   setMode(mode) {
@@ -235,8 +294,55 @@ class Game {
     }
     this.deck = deck.slice(offset);
 
+    // ── Joker handling ──────────────────────────────────────────────
+    // Community jokers → replace with a slot of 2 cards (auto, no player choice)
+    this.community = this.community.map(c => {
+      if (!c?.isJoker) return c;
+      return { isJokerSlot: true, cards: drawNonJoker(this.deck, 2) };
+    });
+    this.betweenCards = this.betweenCards.map(bCards =>
+      bCards.map(c => {
+        if (!c?.isJoker) return c;
+        return { isJokerSlot: true, cards: drawNonJoker(this.deck, 2) };
+      })
+    );
+    // Hand jokers → pause for player choice
+    this.jokerChoices = {};
+    for (const p of this.players.filter(pl => !pl.left)) {
+      const hand = this.hands[p.id];
+      if (!hand) continue;
+      for (let i = 0; i < hand.length; i++) {
+        if (hand[i]?.isJoker) {
+          if (!this.jokerChoices[p.id]) this.jokerChoices[p.id] = [];
+          this.jokerChoices[p.id].push({ handIdx: i, cards: drawNonJoker(this.deck, 2) });
+          hand[i] = null; // placeholder until chosen
+        }
+      }
+    }
+    if (Object.keys(this.jokerChoices).length > 0) {
+      this.state = 'joker-choice';
+      return null;
+    }
+
     this._openPhase();
     return null;
+  }
+
+  resolveJoker(playerId, chosenIdx) {
+    if (this.state !== 'joker-choice') return { error: 'Pas en phase de choix joker.' };
+    const pending = this.jokerChoices[playerId];
+    if (!pending?.length) return { error: 'Pas de joker à résoudre.' };
+    const { handIdx, cards } = pending[0];
+    if (chosenIdx < 0 || chosenIdx >= cards.length) return { error: 'Choix invalide.' };
+    this.hands[playerId][handIdx] = cards[chosenIdx];
+    pending.shift();
+    if (pending.length === 0) delete this.jokerChoices[playerId];
+    if (Object.keys(this.jokerChoices).length === 0) {
+      this.state = 'playing';
+      this._openPhase();
+      return { allResolved: true };
+    }
+    return { ok: true };
   }
 
   // ── Phase management ────────────────────────────────────
@@ -398,12 +504,15 @@ class Game {
     }
 
     const rankInfo = hasBetweenCards
-      ? (isBananaOmaha
-          ? rankPlayersBananaOmahaWithCommunities(this.hands, communityMap, activePlayerIds)
-          : rankPlayersWithCommunities(this.hands, communityMap, activePlayerIds))
-      : isOmaha
-        ? rankPlayersOmaha(this.hands, this.community, activePlayerIds)
-        : rankPlayers(this.hands, this.community, activePlayerIds);
+      ? rankWithJokerSlots(activePlayerIds, id => {
+          const comm = communityMap[id] || [];
+          const sf = isBananaOmaha ? bestHandScoreBananaOmaha : bestHandScore;
+          return Math.max(...(hasJokerSlots(comm) ? expandCommunity(comm) : [comm]).map(c => sf(this.hands[id] || [], c)));
+        })
+      : rankWithJokerSlots(activePlayerIds, id => {
+          const sf = isOmaha ? bestHandScoreOmaha : bestHandScore;
+          return Math.max(...(hasJokerSlots(this.community) ? expandCommunity(this.community) : [this.community]).map(c => sf(this.hands[id] || [], c)));
+        });
 
     // Sort by river token (1 = reveals first = claims to be weakest)
     this.revealOrder = activePlayers
@@ -411,21 +520,26 @@ class Game {
         const info = rankInfo[p.id] ?? { rank: 1, minRank: 1, maxRank: 1 };
         const token = riverZones[p.id];
         let bestFive, hName, community2 = null;
+        const hand = this.hands[p.id];
         if (hasBetweenCards) {
           community2 = communityMap[p.id];
+          const sf = isBananaOmaha ? bestHandScoreBananaOmaha : bestHandScore;
+          const bestComm = bestCommExpansion(hand, community2, sf);
           if (isBananaOmaha) {
-            bestFive = bestFiveCardsBananaOmaha(this.hands[p.id], community2);
-            hName = handNameBananaOmaha(this.hands[p.id], community2);
+            bestFive = bestFiveCardsBananaOmaha(hand, bestComm);
+            hName = handNameBananaOmaha(hand, bestComm);
           } else {
-            bestFive = bestFiveCardsBanana(this.hands[p.id], community2);
-            hName = handName(this.hands[p.id], community2);
+            bestFive = bestFiveCardsBanana(hand, bestComm);
+            hName = handName(hand, bestComm);
           }
         } else if (isOmaha) {
-          bestFive = bestFiveCardsOmaha(this.hands[p.id], this.community);
-          hName = handNameOmaha(this.hands[p.id], this.community);
+          const bestComm = bestCommExpansion(hand, this.community, bestHandScoreOmaha);
+          bestFive = bestFiveCardsOmaha(hand, bestComm);
+          hName = handNameOmaha(hand, bestComm);
         } else {
-          bestFive = bestFiveCards(this.hands[p.id], this.community);
-          hName = handName(this.hands[p.id], this.community);
+          const bestComm = bestCommExpansion(hand, this.community, bestHandScore);
+          bestFive = bestFiveCards(hand, bestComm);
+          hName = handName(hand, bestComm);
         }
         return {
           id: p.id, name: p.name, token,
@@ -487,6 +601,7 @@ class Game {
     let challengePassed;
     if (voteType === 'hand') {
       let actual;
+      const th = this.hands[targetId] || [];
       if (this.mode === 'banana' || this.mode === 'banana-omaha') {
         const idx = this.players.findIndex(p => p.id === targetId);
         const Nv = this.players.length;
@@ -494,13 +609,17 @@ class Game {
           ...(this.betweenCards[(idx - 1 + Nv) % Nv] ?? []),
           ...(this.betweenCards[idx] ?? []),
         ];
+        const sf = this.mode === 'banana-omaha' ? bestHandScoreBananaOmaha : bestHandScore;
+        const bestComm = bestCommExpansion(th, c6, sf);
         actual = this.mode === 'banana-omaha'
-          ? handNameBananaOmaha(this.hands[targetId], c6)
-          : handName(this.hands[targetId], c6);
+          ? handNameBananaOmaha(th, bestComm)
+          : handName(th, bestComm);
       } else if (this.mode === 'omaha') {
-        actual = handNameOmaha(this.hands[targetId], this.community);
+        const bestComm = bestCommExpansion(th, this.community, bestHandScoreOmaha);
+        actual = handNameOmaha(th, bestComm);
       } else {
-        actual = handName(this.hands[targetId], this.community);
+        const bestComm = bestCommExpansion(th, this.community, bestHandScore);
+        actual = handName(th, bestComm);
       }
       challengePassed = challengeValue === actual;
     } else {
@@ -602,6 +721,7 @@ class Game {
     this.lockedZones = {};
     this.betweenCards = [];
     this.voteState = null;
+    this.jokerChoices = {};
     this.players = this.players.filter(p => !p.left);
     this.players.forEach(p => { p.ready = false; p.active = true; p.left = false; });
     this.state = 'lobby';
@@ -641,6 +761,7 @@ class Game {
     this.revealOrder = null;
     this.lastEvent = null;
     this.chat = [];
+    this.jokerChoices = {};
     this.restartVotes = new Set();
   }
 
@@ -660,6 +781,8 @@ class Game {
       excludedMalus: [...this.excludedMalus],
       lockedZones: { ...this.lockedZones },
       creatorId: this.state === 'lobby' ? this.players[0]?.id : this.hostId,
+      jokerChoices: (this.jokerChoices[forPlayerId] ?? []).map(({ handIdx, cards }) => ({ handIdx, cards })),
+      jokerWaiting: Object.keys(this.jokerChoices).map(id => this.players.find(p => p.id === id)?.name).filter(Boolean),
       myHand: this.hands[forPlayerId] ?? [],
       handSizes: Object.fromEntries(this.players.map(p => [p.id, (this.hands[p.id] ?? []).length])),
       community: this.visibleCommunity(forPlayerId),

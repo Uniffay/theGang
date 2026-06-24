@@ -327,11 +327,12 @@ export default function App() {
   const restart = useCallback(() => socket.emit('vote-restart'), []);
   const kickPlayer = useCallback((targetId) => socket.emit('kick-player', { targetId }), []);
   const leaveGame = useCallback(() => socket.emit('leave-game'), []);
+  const resolveJoker = useCallback((chosenIdx) => socket.emit('resolve-joker', { chosenIdx }), []);
 
   let content;
   if (screen === 'home')  content = <Home onJoin={join} error={error} />;
   else if (screen === 'lobby') content = <Lobby roomId={roomId} roomData={roomData} playerName={playerName} onReady={setReady} onQuit={quit} onSetMode={setGameMode} onToggleMalus={toggleDefaultMalus} onToggleExcluded={toggleExcludedMalus} onKick={kickPlayer} error={error} />;
-  else content = <GameScreen gameState={gameState} playerName={playerName} roomId={roomId} onPickToken={pickToken} onPlaceToken={placeToken} onReleaseToken={releaseToken} onSendChat={sendChat} onHostAction={hostAction} onKick={kickPlayer} onLeave={leaveGame} drawnMalus={drawnMalus} error={error} />;
+  else content = <GameScreen gameState={gameState} playerName={playerName} roomId={roomId} onPickToken={pickToken} onPlaceToken={placeToken} onReleaseToken={releaseToken} onSendChat={sendChat} onHostAction={hostAction} onKick={kickPlayer} onLeave={leaveGame} onResolveJoker={resolveJoker} drawnMalus={drawnMalus} error={error} />;
 
   return (
     <ThemeContext.Provider value={theme}>

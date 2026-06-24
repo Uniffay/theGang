@@ -692,3 +692,48 @@
   .chat-box, .chat-form { display: none; }
   .game-wrap { flex-direction: column; }
 }
+
+/* ── Joker overlay ─────────────────────────────────────────────────────────── */
+.joker-overlay {
+  position: fixed; inset: 0; z-index: 900;
+  background: rgba(0,0,0,0.72);
+  display: flex; align-items: center; justify-content: center;
+}
+.joker-modal {
+  background: var(--surface);
+  border: 2px solid var(--accent);
+  border-radius: 16px;
+  padding: 28px 32px;
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  max-width: 420px; width: 90%;
+}
+.joker-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.6rem; color: var(--accent); margin: 0; letter-spacing: 0.08em;
+}
+.joker-sub { color: var(--muted); font-size: 0.9rem; margin: 0; text-align: center; }
+.joker-choices { display: flex; gap: 20px; justify-content: center; }
+.joker-choice-btn {
+  background: none; border: 2px solid transparent;
+  border-radius: 10px; padding: 6px; cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s;
+}
+.joker-choice-btn:hover {
+  border-color: var(--accent); transform: scale(1.06);
+}
+
+/* ── Community joker slot ──────────────────────────────────────────────────── */
+.joker-comm-slot {
+  position: relative;
+  display: flex; gap: 4px;
+  padding: 4px;
+  border: 2px solid var(--accent);
+  border-radius: 8px;
+  background: rgba(232,200,58,0.06);
+}
+.joker-comm-badge {
+  position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+  background: var(--accent); color: #000;
+  font-size: 0.6rem; font-weight: 800; border-radius: 4px; padding: 1px 4px;
+  white-space: nowrap; pointer-events: none;
+}

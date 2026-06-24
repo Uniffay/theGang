@@ -403,7 +403,7 @@ function EndOverlay({ state, revealOrder, community, completedPhases, isHost, cr
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────
-export default function GameScreen({ gameState, playerName, onPlaceToken, onReleaseToken, onHostAction, onKick, onLeave, drawnMalus }) {
+export default function GameScreen({ gameState, playerName, onPlaceToken, onReleaseToken, onHostAction, onKick, onLeave, onResolveJoker, drawnMalus }) {
   const gameAreaRef = useRef(null);
   const [localPos, setLocalPos] = useState({});
   const [dragState, setDragState] = useState(null);
@@ -417,7 +417,7 @@ export default function GameScreen({ gameState, playerName, onPlaceToken, onRele
   const { table: tableTheme } = useTheme();
   if (!gameState) return <div className="screen"><p style={{ color: 'var(--muted)' }}>Connexion…</p></div>;
 
-  const { state, phase, phaseIndex, color, players, myHand, handSizes, community, betweenCards, playerZones, completedPhases, revealOrder, voteState, n, countdownStartedAt, mode, activeMalus, lockedZones, creatorId } = gameState;
+  const { state, phase, phaseIndex, color, players, myHand, handSizes, community, betweenCards, playerZones, completedPhases, revealOrder, voteState, n, countdownStartedAt, mode, activeMalus, lockedZones, creatorId, jokerChoices: myJokerChoices, jokerWaiting } = gameState;
   const holeCount = ((mode === 'omaha' || mode === 'banana-omaha') ? 4 : 2) + ((activeMalus ?? []).some(m => m.id === 'camera-surveillance') ? 1 : 0);
   const notRiver = color !== 'red';
   const hasJetonNoir     = notRiver && (activeMalus ?? []).some(m => m.id === 'jeton-noir');
@@ -628,14 +628,23 @@ export default function GameScreen({ gameState, playerName, onPlaceToken, onRele
               </p>
             ) : (
               <div className="community-cards">
-                {(community ?? []).map((card, i) => (
-                  <PokerCard
-                    key={`${card.value}${card.suit}`}
-                    card={card}
-                    large
-                    delay={communityDelays[i] ?? 0}
-                  />
-                ))}
+                {(community ?? []).map((card, i) =>
+                  card?.isJokerSlot ? (
+                    <div key={`joker-comm-${i}`} className="joker-comm-slot">
+                      {(card.cards ?? []).map((c, j) => (
+                        <PokerCard key={j} card={c} large delay={communityDelays[i] ?? 0} />
+                      ))}
+                      <span className="joker-comm-badge">1/2</span>
+                    </div>
+                  ) : (
+                    <PokerCard
+                      key={`${card.value}${card.suit}`}
+                      card={card}
+                      large
+                      delay={communityDelays[i] ?? 0}
+                    />
+                  )
+                )}
               </div>
             )}
           </div>
@@ -700,9 +709,11 @@ export default function GameScreen({ gameState, playerName, onPlaceToken, onRele
               {!p.left && (
                 <div className="hand-cards">
                   {isMe
-                    ? sortHand(myHand).map((card, ci) => (
-                        <PokerCard key={`${card.value}${card.suit}`} card={card} large delay={ci * 220} />
-                      ))
+                    ? (myHand ?? []).map((card, ci) =>
+                        card
+                          ? <PokerCard key={`${card.value}${card.suit}`} card={card} large delay={ci * 220} />
+                          : <PokerCard key={`joker-slot-${ci}`} hidden large delay={ci * 220} />
+                      )
                     : Array.from({ length: handSizes?.[p.id] ?? holeCount }, (_, ci) => {
                         const epoch = myHand?.[0] ? `${myHand[0].value}${myHand[0].suit}` : 'none';
                         return <PokerCard key={`back-${p.id}-${ci}-${epoch}`} hidden large delay={ci * 180} />;
@@ -798,6 +809,31 @@ export default function GameScreen({ gameState, playerName, onPlaceToken, onRele
       <VoteResultPopup ev={voteResultEv} />
       <SwapPopup data={swapPopup} />
       <MalusPopup malus={drawnMalus} />
+
+      {state === 'joker-choice' && (
+        <div className="joker-overlay">
+          <div className="joker-modal">
+            {(myJokerChoices ?? []).length > 0 ? (
+              <>
+                <h3 className="joker-title">🃏 Joker pioché !</h3>
+                <p className="joker-sub">Choisis la carte qui remplace ton Joker :</p>
+                <div className="joker-choices">
+                  {myJokerChoices[0].cards.map((card, idx) => (
+                    <button key={idx} className="joker-choice-btn" onClick={() => onResolveJoker(idx)}>
+                      <PokerCard card={card} large />
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 className="joker-title">🃏 Joker en cours…</h3>
+                <p className="joker-sub">{(jokerWaiting ?? []).join(', ')} choisit sa carte</p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
