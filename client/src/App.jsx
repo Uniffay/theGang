@@ -188,6 +188,7 @@ const AVATAR_OPTIONS = [
   { v: '/avatars/miss_fortune.jpg', label: 'Miss Fortune' },
   { v: '/avatars/seraphine.png', label: 'Seraphine' },
   { v: '/avatars/jinx.png',      label: 'Jinx' },
+  { v: '/avatars/lee_seen.png',  label: 'Lee Seen' },
 ];
 
 // ── App ──────────────────────────────────────────────────────────────────────
