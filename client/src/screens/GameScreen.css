@@ -308,6 +308,7 @@
 
 .hand-cards { display: flex; gap: 0; perspective: 700px; }
 .hand-cards > .poker-card + .poker-card { margin-left: -14px; }
+.hand-cards > .hand-card-drag + .hand-card-drag { margin-left: -14px; }
 
 .hand-history { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
 
@@ -744,11 +745,20 @@
   top: -8px; font-size: 0.5rem; padding: 0 3px;
 }
 
-/* ── Hand card drag-to-reorder ─────────────────────────────────────────────── */
+/* ── Hand card click-to-reorder ────────────────────────────────────────────── */
 .hand-card-drag {
-  cursor: grab;
+  pointer-events: auto;
+  cursor: pointer;
   transition: transform 0.12s;
+  position: relative;
 }
-.hand-card-drag:active { cursor: grabbing; }
 .hand-card-drag:hover { transform: translateY(-6px); }
-.hand-card-drag[draggable]:focus { outline: none; }
+.hand-card-drag.hand-card-selected { transform: translateY(-12px); }
+.hand-card-selected::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border: 2px solid var(--accent);
+  border-radius: 8px;
+  pointer-events: none;
+}

@@ -414,7 +414,7 @@ export default function GameScreen({ gameState, playerName, onPlaceToken, onRele
   const [voteResultEv, setVoteResultEv] = useState(null);
   const prevCommunityLenRef = useRef(0);
   const [handOrder, setHandOrder] = useState([]);
-  const handDragSrc = useRef(null);
+  const [selectedCardIdx, setSelectedCardIdx] = useState(null);
 
   const { table: tableTheme } = useTheme();
   if (!gameState) return <div className="screen"><p style={{ color: 'var(--muted)' }}>Connexion…</p></div>;
@@ -736,23 +736,25 @@ export default function GameScreen({ gameState, playerName, onPlaceToken, onRele
                   {isMe
                     ? (handOrder.length === (myHand ?? []).length ? handOrder : (myHand ?? []).map((_, i) => i)).map((realIdx, visIdx) => {
                         const card = (myHand ?? [])[realIdx];
+                        const isSelected = selectedCardIdx === visIdx;
                         return (
                           <div
                             key={card ? `${card.value}${card.suit}-${realIdx}` : `joker-${realIdx}`}
-                            className="hand-card-drag"
-                            draggable
-                            onDragStart={() => { handDragSrc.current = visIdx; }}
-                            onDragOver={e => e.preventDefault()}
-                            onDrop={() => {
-                              const src = handDragSrc.current;
-                              if (src == null || src === visIdx) return;
-                              setHandOrder(prev => {
-                                const next = [...prev];
-                                const [removed] = next.splice(src, 1);
-                                next.splice(visIdx, 0, removed);
-                                return next;
-                              });
-                              handDragSrc.current = null;
+                            className={`hand-card-drag${isSelected ? ' hand-card-selected' : ''}`}
+                            onClick={() => {
+                              if (selectedCardIdx === null) {
+                                setSelectedCardIdx(visIdx);
+                              } else if (selectedCardIdx === visIdx) {
+                                setSelectedCardIdx(null);
+                              } else {
+                                const src = selectedCardIdx;
+                                setHandOrder(prev => {
+                                  const next = [...prev];
+                                  [next[src], next[visIdx]] = [next[visIdx], next[src]];
+                                  return next;
+                                });
+                                setSelectedCardIdx(null);
+                              }
                             }}
                           >
                             {card
