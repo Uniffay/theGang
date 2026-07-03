@@ -737,3 +737,9 @@
   font-size: 0.6rem; font-weight: 800; border-radius: 4px; padding: 1px 4px;
   white-space: nowrap; pointer-events: none;
 }
+.joker-comm-slot-small {
+  gap: 2px; padding: 2px; border-radius: 6px;
+}
+.joker-comm-slot-small .joker-comm-badge {
+  top: -8px; font-size: 0.5rem; padding: 0 3px;
+}

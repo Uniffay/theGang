@@ -287,4 +287,4 @@ function rankPlayersBananaOmahaWithCommunities(playerHands, communityMap, player
   })));
 }
 
-module.exports = { rankPlayers, handName, bestFiveCards, rankPlayersOmaha, handNameOmaha, bestFiveCardsOmaha, rankPlayersBanana, bestFiveCardsBanana, rankPlayersBananaOmaha, handNameBananaOmaha, bestFiveCardsBananaOmaha, rankPlayersWithCommunities, rankPlayersBananaOmahaWithCommunities };
+module.exports = { rankPlayers, handName, bestFiveCards, rankPlayersOmaha, handNameOmaha, bestFiveCardsOmaha, rankPlayersBanana, bestFiveCardsBanana, rankPlayersBananaOmaha, handNameBananaOmaha, bestFiveCardsBananaOmaha, rankPlayersWithCommunities, rankPlayersBananaOmahaWithCommunities, bestHandScore, bestHandScoreOmaha, bestHandScoreBananaOmaha };

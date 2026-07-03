@@ -660,9 +660,17 @@ export default function GameScreen({ gameState, playerName, onPlaceToken, onRele
             const top  = midY + (midY - 50) * 0.38;
             return (
               <div key={i} style={{ position: 'absolute', left: `${left}%`, top: `${top}%`, transform: 'translate(-50%,-50%)', zIndex: 5, display: 'flex', gap: 2 }}>
-                {Array.from({ length: bc.total ?? 3 }, (_, j) => (
-                  <PokerCard key={j} card={bc.cards?.[j] ?? null} hidden={!bc.cards?.[j]} small />
-                ))}
+                {Array.from({ length: bc.total ?? 3 }, (_, j) => {
+                  const c = bc.cards?.[j] ?? null;
+                  return c?.isJokerSlot ? (
+                    <div key={j} className="joker-comm-slot joker-comm-slot-small">
+                      {(c.cards ?? []).map((cc, ci) => <PokerCard key={ci} card={cc} small />)}
+                      <span className="joker-comm-badge">1/2</span>
+                    </div>
+                  ) : (
+                    <PokerCard key={j} card={c} hidden={!c} small />
+                  );
+                })}
               </div>
             );
           })}
