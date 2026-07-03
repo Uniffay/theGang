@@ -232,6 +232,10 @@ class Game {
         if (r.id === oldId) r.id = newId;
       }
     }
+    if (this.jokerChoices[oldId]) {
+      this.jokerChoices[newId] = this.jokerChoices[oldId];
+      delete this.jokerChoices[oldId];
+    }
   }
 
   markDisconnected(id) {
@@ -687,6 +691,15 @@ class Game {
     // Trim pool to valid range 1..newN
     const newN = this.players.filter(pl => !pl.left).length;
     this.tokenPool = this.tokenPool.filter(t => t <= newN).sort((a, b) => a - b);
+
+    // Drop pending joker choices; unblock the game if they were the last one
+    if (this.jokerChoices[playerId]) {
+      delete this.jokerChoices[playerId];
+      if (this.state === 'joker-choice' && Object.keys(this.jokerChoices).length === 0) {
+        this.state = 'playing';
+        this._openPhase();
+      }
+    }
 
     this.lastEvent = { type: 'player-left', playerId, name: p.name, ts: Date.now() };
 

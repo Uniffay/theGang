@@ -149,6 +149,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('token-moved', ({ token, x, y, dragger }) => {
+    if (!currentRoom) return;
     socket.to(currentRoom).emit('token-moved', { token, x, y, dragger });
   });
 

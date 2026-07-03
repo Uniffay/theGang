@@ -57,7 +57,7 @@ export default function Home({ onJoin, error }) {
       </div>
 
       <p style={{ marginTop: 24, color: 'var(--muted)', fontSize: '0.8rem', maxWidth: 360, textAlign: 'center' }}>
-        2–5 joueurs · Jouez toutes les cartes (1→40) dans l'ordre croissant sans vous montrer vos cartes
+        2–8 joueurs · Classez vos mains de poker de la plus faible à la plus forte sans vous montrer vos cartes
       </p>
     </div>
   );

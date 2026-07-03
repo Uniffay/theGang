@@ -243,7 +243,7 @@ function EndOverlay({ state, revealOrder, community, completedPhases, isHost, cr
   const targetId = voteState?.targetId;
   const targetPlayer = players?.find(p => p.id === targetId);
   const isVoteTarget = myId === targetId;
-  const nonTargetPlayers = (players ?? []).filter(p => p.id !== targetId);
+  const nonTargetPlayers = (players ?? []).filter(p => p.id !== targetId && !p.left);
   const voteCount = Object.keys(voteState?.votes ?? {}).length;
   const showVotePanel = isVoting && step >= total;
 
@@ -263,7 +263,16 @@ function EndOverlay({ state, revealOrder, community, completedPhases, isHost, cr
 
           {!isBanana && (
             <div className={`end-community ${step >= 1 ? 'end-appear' : 'end-hidden'}`}>
-              {communitySlots.map((card, i) => <PokerCard key={i} card={card} hidden={!card} />)}
+              {communitySlots.map((card, i) =>
+                card?.isJokerSlot ? (
+                  <div key={i} className="joker-comm-slot joker-comm-slot-small">
+                    {(card.cards ?? []).map((c, j) => <PokerCard key={j} card={c} />)}
+                    <span className="joker-comm-badge">1/2</span>
+                  </div>
+                ) : (
+                  <PokerCard key={i} card={card} hidden={!card} />
+                )
+              )}
             </div>
           )}
 
@@ -292,7 +301,16 @@ function EndOverlay({ state, revealOrder, community, completedPhases, isHost, cr
                       <>
                         <span className="rev-arrow" style={{ fontSize: '0.7rem', color: 'var(--muted)' }}>+</span>
                         <div className="rev-best" style={{ border: '1px dashed rgba(200,180,100,0.4)', borderRadius: 6, padding: '2px 4px' }}>
-                          {r.community.map((card, i) => <PokerCard key={i} card={card} small />)}
+                          {r.community.map((card, i) =>
+                            card?.isJokerSlot ? (
+                              <div key={i} className="joker-comm-slot joker-comm-slot-small">
+                                {(card.cards ?? []).map((c, j) => <PokerCard key={j} card={c} small />)}
+                                <span className="joker-comm-badge">1/2</span>
+                              </div>
+                            ) : (
+                              <PokerCard key={i} card={card} small />
+                            )
+                          )}
                         </div>
                       </>
                     )}
@@ -419,9 +437,8 @@ export default function GameScreen({ gameState, playerName, onPlaceToken, onRele
   const myHandCardsRef = useRef(null);
 
   const { table: tableTheme } = useTheme();
-  if (!gameState) return <div className="screen"><p style={{ color: 'var(--muted)' }}>Connexion…</p></div>;
 
-  const { state, phase, phaseIndex, color, players, myHand, handSizes, community, betweenCards, playerZones, completedPhases, revealOrder, voteState, n, countdownStartedAt, mode, activeMalus, lockedZones, creatorId, jokerChoices: myJokerChoices, jokerWaiting } = gameState;
+  const { state, phase, phaseIndex, color, players, myHand, handSizes, community, betweenCards, playerZones, completedPhases, revealOrder, voteState, n, countdownStartedAt, mode, activeMalus, lockedZones, creatorId, jokerChoices: myJokerChoices, jokerWaiting } = gameState ?? {};
   const holeCount = ((mode === 'omaha' || mode === 'banana-omaha') ? 4 : 2) + ((activeMalus ?? []).some(m => m.id === 'camera-surveillance') ? 1 : 0);
   const notRiver = color !== 'red';
   const hasJetonNoir     = notRiver && (activeMalus ?? []).some(m => m.id === 'jeton-noir');
@@ -626,6 +643,9 @@ export default function GameScreen({ gameState, playerName, onPlaceToken, onRele
       document.removeEventListener('mouseup', onUp);
     };
   }, [dragState, positions, myIdx, myId, onPlaceToken, onReleaseToken]);
+
+  // All hooks are above this line — the early return must stay below them
+  if (!gameState) return <div className="screen"><p style={{ color: 'var(--muted)' }}>Connexion…</p></div>;
 
   function startDrag(e, token) {
     if (isOver) return;
