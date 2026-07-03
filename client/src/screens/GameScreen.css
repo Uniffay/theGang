@@ -745,20 +745,32 @@
   top: -8px; font-size: 0.5rem; padding: 0 3px;
 }
 
-/* ── Hand card click-to-reorder ────────────────────────────────────────────── */
+/* ── Hand card drag-to-reorder ─────────────────────────────────────────────── */
 .hand-card-drag {
   pointer-events: auto;
-  cursor: pointer;
-  transition: transform 0.12s;
+  cursor: grab;
+  transition: transform 0.1s, opacity 0.1s;
   position: relative;
 }
 .hand-card-drag:hover { transform: translateY(-6px); }
-.hand-card-drag.hand-card-selected { transform: translateY(-12px); }
-.hand-card-selected::after {
+.hand-card-drag.hand-card-dragging { opacity: 0.25; transform: translateY(-4px); cursor: grabbing; }
+.hand-card-drag.hand-card-over { transform: translateY(-10px); }
+.hand-card-over::before {
   content: '';
   position: absolute;
-  inset: -3px;
-  border: 2px solid var(--accent);
-  border-radius: 8px;
+  left: -3px; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--accent);
+  border-radius: 2px;
   pointer-events: none;
+}
+
+/* ── Hand drag ghost ───────────────────────────────────────────────────────── */
+.hand-drag-ghost {
+  position: fixed;
+  transform: translate(-50%, -60%) rotate(5deg);
+  pointer-events: none;
+  z-index: 999;
+  opacity: 0.9;
+  filter: drop-shadow(0 8px 16px rgba(0,0,0,0.6));
 }

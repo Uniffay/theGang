@@ -361,31 +361,47 @@ class Game {
     if (this.mode === 'banana' || this.mode === 'banana-omaha') return;
     const prevPhase = this.completedPhases.find(cp => cp.phase === 'preflop');
     if (!prevPhase) return;
-    const flopCards = this.community.slice(0, 3);
-    const hasFace = flopCards.some(c => ['K', 'Q', 'J'].includes(c.value));
 
     const zones = prevPhase.zones;
+    const holeCount = this.mode === 'omaha' ? 4 : 2;
     let targetId = null;
+    let reason = null;
 
-    if (hasFace && this.hasMalus('echange-tete')) {
+    if (this.hasMalus('echange-tete')) {
       for (const [pid, tok] of Object.entries(zones)) {
-        if (tok === 1) { targetId = pid; break; }
+        if (tok === 1) {
+          const hand = this.hands[pid] ?? [];
+          if (hand.some(c => ['K', 'Q', 'J'].includes(c.value))) {
+            targetId = pid;
+            reason = 'tete';
+          }
+          break;
+        }
       }
-    } else if (!hasFace && this.hasMalus('echange-sans-tete')) {
-      let maxTok = 0;
+    }
+
+    if (!targetId && this.hasMalus('echange-sans-tete')) {
+      let maxTok = 0, maxId = null;
       for (const [pid, tok] of Object.entries(zones)) {
-        if (tok > maxTok) { maxTok = tok; targetId = pid; }
+        if (tok > maxTok) { maxTok = tok; maxId = pid; }
+      }
+      if (maxId) {
+        const hand = this.hands[maxId] ?? [];
+        if (!hand.some(c => ['K', 'Q', 'J'].includes(c.value))) {
+          targetId = maxId;
+          reason = 'sans-tete';
+        }
       }
     }
 
     if (!targetId) return;
+    if (this.deck.length < holeCount) return;
 
-    if (this.deck.length < 2) return;
-    this.hands[targetId] = this.deck.splice(0, 2);
+    this.hands[targetId] = this.deck.splice(0, holeCount);
     this.lastEvent = {
       type: 'cards-redrawn',
       phase: 'flop',
-      reason: hasFace ? 'tete' : 'sans-tete',
+      reason,
       targetId,
       ts: Date.now(),
     };

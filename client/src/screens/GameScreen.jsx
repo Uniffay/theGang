@@ -414,7 +414,9 @@ export default function GameScreen({ gameState, playerName, onPlaceToken, onRele
   const [voteResultEv, setVoteResultEv] = useState(null);
   const prevCommunityLenRef = useRef(0);
   const [handOrder, setHandOrder] = useState([]);
-  const [selectedCardIdx, setSelectedCardIdx] = useState(null);
+  const [handDragVisual, setHandDragVisual] = useState(null); // { srcIdx, overIdx, x, y }
+  const handDragRef = useRef(null);
+  const myHandCardsRef = useRef(null);
 
   const { table: tableTheme } = useTheme();
   if (!gameState) return <div className="screen"><p style={{ color: 'var(--muted)' }}>Connexion…</p></div>;
@@ -495,6 +497,46 @@ export default function GameScreen({ gameState, playerName, onPlaceToken, onRele
       return () => clearTimeout(t);
     }
   }, [gameState?.lastEvent?.ts]);
+
+  // Hand card mouse-drag reordering
+  useEffect(() => {
+    function onMove(e) {
+      const drag = handDragRef.current;
+      if (!drag) return;
+      const container = myHandCardsRef.current;
+      let overIdx = drag.srcIdx;
+      if (container) {
+        const children = [...container.children];
+        for (let i = 0; i < children.length; i++) {
+          const rect = children[i].getBoundingClientRect();
+          if (e.clientX <= rect.left + rect.width / 2) { overIdx = i; break; }
+          overIdx = i;
+        }
+      }
+      handDragRef.current = { ...drag, x: e.clientX, y: e.clientY, overIdx };
+      setHandDragVisual({ srcIdx: drag.srcIdx, overIdx, x: e.clientX, y: e.clientY });
+    }
+    function onUp() {
+      const drag = handDragRef.current;
+      if (!drag) return;
+      if (drag.overIdx !== drag.srcIdx) {
+        setHandOrder(prev => {
+          const next = [...prev];
+          const [removed] = next.splice(drag.srcIdx, 1);
+          next.splice(drag.overIdx, 0, removed);
+          return next;
+        });
+      }
+      handDragRef.current = null;
+      setHandDragVisual(null);
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    return () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+  }, []);
 
   // Reset hand order when hand length changes (new deal), sorted by value ascending
   useEffect(() => {
@@ -732,29 +774,20 @@ export default function GameScreen({ gameState, playerName, onPlaceToken, onRele
             <div key={`hand-${p.id}`} className="player-hand" style={{ left: `${hx}%`, top: `${hy}%`, opacity: p.left ? 0.4 : 1 }}>
               {isNorth && labelEl}
               {!p.left && (
-                <div className="hand-cards">
+                <div className="hand-cards" ref={isMe ? myHandCardsRef : null}>
                   {isMe
                     ? (handOrder.length === (myHand ?? []).length ? handOrder : (myHand ?? []).map((_, i) => i)).map((realIdx, visIdx) => {
                         const card = (myHand ?? [])[realIdx];
-                        const isSelected = selectedCardIdx === visIdx;
+                        const isDragging = handDragVisual?.srcIdx === visIdx;
+                        const isOver = handDragVisual && handDragVisual.srcIdx !== visIdx && handDragVisual.overIdx === visIdx;
                         return (
                           <div
                             key={card ? `${card.value}${card.suit}-${realIdx}` : `joker-${realIdx}`}
-                            className={`hand-card-drag${isSelected ? ' hand-card-selected' : ''}`}
-                            onClick={() => {
-                              if (selectedCardIdx === null) {
-                                setSelectedCardIdx(visIdx);
-                              } else if (selectedCardIdx === visIdx) {
-                                setSelectedCardIdx(null);
-                              } else {
-                                const src = selectedCardIdx;
-                                setHandOrder(prev => {
-                                  const next = [...prev];
-                                  [next[src], next[visIdx]] = [next[visIdx], next[src]];
-                                  return next;
-                                });
-                                setSelectedCardIdx(null);
-                              }
+                            className={`hand-card-drag${isDragging ? ' hand-card-dragging' : ''}${isOver ? ' hand-card-over' : ''}`}
+                            onMouseDown={e => {
+                              e.stopPropagation();
+                              handDragRef.current = { srcIdx: visIdx, overIdx: visIdx, x: e.clientX, y: e.clientY };
+                              setHandDragVisual({ srcIdx: visIdx, overIdx: visIdx, x: e.clientX, y: e.clientY });
                             }}
                           >
                             {card
@@ -828,6 +861,17 @@ export default function GameScreen({ gameState, playerName, onPlaceToken, onRele
           <Chip value={dragState.token} color={color} />
         </div>
       )}
+
+      {/* Hand card drag ghost */}
+      {handDragVisual && (() => {
+        const realIdx = (handOrder.length === (myHand ?? []).length ? handOrder : (myHand ?? []).map((_, i) => i))[handDragVisual.srcIdx];
+        const card = (myHand ?? [])[realIdx];
+        return (
+          <div className="hand-drag-ghost" style={{ left: handDragVisual.x, top: handDragVisual.y }}>
+            {card ? <PokerCard card={card} large /> : <PokerCard hidden large />}
+          </div>
+        );
+      })()}
 
       {/* Quit button — all players, not when game is over */}
       {!isOver && state !== 'voting' && (
