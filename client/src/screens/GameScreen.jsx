@@ -413,6 +413,8 @@ export default function GameScreen({ gameState, playerName, onPlaceToken, onRele
   const [swapPopup, setSwapPopup] = useState(null);
   const [voteResultEv, setVoteResultEv] = useState(null);
   const prevCommunityLenRef = useRef(0);
+  const [handOrder, setHandOrder] = useState([]);
+  const handDragSrc = useRef(null);
 
   const { table: tableTheme } = useTheme();
   if (!gameState) return <div className="screen"><p style={{ color: 'var(--muted)' }}>Connexion…</p></div>;
@@ -493,6 +495,21 @@ export default function GameScreen({ gameState, playerName, onPlaceToken, onRele
       return () => clearTimeout(t);
     }
   }, [gameState?.lastEvent?.ts]);
+
+  // Reset hand order when hand length changes (new deal), sorted by value ascending
+  useEffect(() => {
+    const hand = gameState?.myHand ?? [];
+    if (hand.length === 0) { setHandOrder([]); return; }
+    const sorted = hand
+      .map((card, i) => ({ card, i }))
+      .sort((a, b) => {
+        if (!a.card) return 1;
+        if (!b.card) return -1;
+        return VALUE_ORDER.indexOf(a.card.value) - VALUE_ORDER.indexOf(b.card.value);
+      })
+      .map(({ i }) => i);
+    setHandOrder(sorted);
+  }, [(gameState?.myHand ?? []).length]);
 
   // Receive position updates from other players
   useEffect(() => {
@@ -717,11 +734,33 @@ export default function GameScreen({ gameState, playerName, onPlaceToken, onRele
               {!p.left && (
                 <div className="hand-cards">
                   {isMe
-                    ? (myHand ?? []).map((card, ci) =>
-                        card
-                          ? <PokerCard key={`${card.value}${card.suit}`} card={card} large delay={ci * 220} />
-                          : <PokerCard key={`joker-slot-${ci}`} hidden large delay={ci * 220} />
-                      )
+                    ? (handOrder.length === (myHand ?? []).length ? handOrder : (myHand ?? []).map((_, i) => i)).map((realIdx, visIdx) => {
+                        const card = (myHand ?? [])[realIdx];
+                        return (
+                          <div
+                            key={card ? `${card.value}${card.suit}-${realIdx}` : `joker-${realIdx}`}
+                            className="hand-card-drag"
+                            draggable
+                            onDragStart={() => { handDragSrc.current = visIdx; }}
+                            onDragOver={e => e.preventDefault()}
+                            onDrop={() => {
+                              const src = handDragSrc.current;
+                              if (src == null || src === visIdx) return;
+                              setHandOrder(prev => {
+                                const next = [...prev];
+                                const [removed] = next.splice(src, 1);
+                                next.splice(visIdx, 0, removed);
+                                return next;
+                              });
+                              handDragSrc.current = null;
+                            }}
+                          >
+                            {card
+                              ? <PokerCard card={card} large delay={visIdx * 220} />
+                              : <PokerCard hidden large delay={visIdx * 220} />}
+                          </div>
+                        );
+                      })
                     : Array.from({ length: handSizes?.[p.id] ?? holeCount }, (_, ci) => {
                         const epoch = myHand?.[0] ? `${myHand[0].value}${myHand[0].suit}` : 'none';
                         return <PokerCard key={`back-${p.id}-${ci}-${epoch}`} hidden large delay={ci * 180} />;

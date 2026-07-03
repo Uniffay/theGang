@@ -743,3 +743,12 @@
 .joker-comm-slot-small .joker-comm-badge {
   top: -8px; font-size: 0.5rem; padding: 0 3px;
 }
+
+/* ── Hand card drag-to-reorder ─────────────────────────────────────────────── */
+.hand-card-drag {
+  cursor: grab;
+  transition: transform 0.12s;
+}
+.hand-card-drag:active { cursor: grabbing; }
+.hand-card-drag:hover { transform: translateY(-6px); }
+.hand-card-drag[draggable]:focus { outline: none; }
