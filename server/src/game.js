@@ -363,7 +363,7 @@ class Game {
     if (!prevPhase) return;
 
     const zones = prevPhase.zones;
-    const holeCount = this.mode === 'omaha' ? 4 : 2;
+    const holeCount = (this.mode === 'omaha' ? 4 : 2) + (this.hasMalus('camera-surveillance') ? 1 : 0);
     let targetId = null;
     let reason = null;
 
@@ -395,9 +395,10 @@ class Game {
     }
 
     if (!targetId) return;
-    if (this.deck.length < holeCount) return;
 
-    this.hands[targetId] = this.deck.splice(0, holeCount);
+    const newHand = drawNonJoker(this.deck, holeCount);
+    if (newHand.length < holeCount) return; // deck exhausted, keep old hand
+    this.hands[targetId] = newHand;
     this.lastEvent = {
       type: 'cards-redrawn',
       phase: 'flop',

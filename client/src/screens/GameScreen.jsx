@@ -538,7 +538,8 @@ export default function GameScreen({ gameState, playerName, onPlaceToken, onRele
     };
   }, []);
 
-  // Reset hand order when hand length changes (new deal), sorted by value ascending
+  // Reset hand order when the hand changes (new deal, malus swap, joker resolved), sorted ascending
+  const handSignature = (gameState?.myHand ?? []).map(c => c ? `${c.value}${c.suit}` : '?').join(',');
   useEffect(() => {
     const hand = gameState?.myHand ?? [];
     if (hand.length === 0) { setHandOrder([]); return; }
@@ -551,7 +552,7 @@ export default function GameScreen({ gameState, playerName, onPlaceToken, onRele
       })
       .map(({ i }) => i);
     setHandOrder(sorted);
-  }, [(gameState?.myHand ?? []).length]);
+  }, [handSignature]);
 
   // Receive position updates from other players
   useEffect(() => {
