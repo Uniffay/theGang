@@ -318,6 +318,7 @@ export default function App() {
   const setReady = useCallback((v) => socket.emit('set-ready', { ready: v }), []);
   const setGameMode = useCallback((mode) => socket.emit('set-game-mode', { mode }), []);
   const setJokerConfig = useCallback((cfg) => socket.emit('set-joker-config', cfg), []);
+  const setTrollVote = useCallback((enabled) => socket.emit('set-troll-vote', { enabled }), []);
   const toggleDefaultMalus = useCallback((id) => socket.emit('toggle-default-malus', { id }), []);
   const toggleExcludedMalus = useCallback((id) => socket.emit('toggle-excluded-malus', { id }), []);
   const hostAction = useCallback((action) => socket.emit('host-action', { action }), []);
@@ -332,7 +333,7 @@ export default function App() {
 
   let content;
   if (screen === 'home')  content = <Home onJoin={join} error={error} />;
-  else if (screen === 'lobby') content = <Lobby roomId={roomId} roomData={roomData} playerName={playerName} onReady={setReady} onQuit={quit} onSetMode={setGameMode} onToggleMalus={toggleDefaultMalus} onToggleExcluded={toggleExcludedMalus} onSetJokerConfig={setJokerConfig} onKick={kickPlayer} error={error} />;
+  else if (screen === 'lobby') content = <Lobby roomId={roomId} roomData={roomData} playerName={playerName} onReady={setReady} onQuit={quit} onSetMode={setGameMode} onToggleMalus={toggleDefaultMalus} onToggleExcluded={toggleExcludedMalus} onSetJokerConfig={setJokerConfig} onSetTrollVote={setTrollVote} onKick={kickPlayer} error={error} />;
   else content = <GameScreen gameState={gameState} playerName={playerName} roomId={roomId} onPickToken={pickToken} onPlaceToken={placeToken} onReleaseToken={releaseToken} onSendChat={sendChat} onHostAction={hostAction} onKick={kickPlayer} onLeave={leaveGame} onResolveJoker={resolveJoker} drawnMalus={drawnMalus} error={error} />;
 
   return (

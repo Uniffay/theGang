@@ -777,3 +777,14 @@
   opacity: 0.9;
   filter: drop-shadow(0 8px 16px rgba(0,0,0,0.6));
 }
+
+/* ── Vote du Trolleur ──────────────────────────────────────────────────────── */
+.troll-vote-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.2rem; color: var(--accent);
+  letter-spacing: 0.08em; margin: 0 0 8px; text-align: center;
+}
+.troll-vote-grid {
+  display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+}
+.troll-vote-btn { padding: 8px 14px; font-size: 0.85rem; }

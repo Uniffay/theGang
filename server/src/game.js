@@ -161,6 +161,9 @@ class Game {
     this.jokerChoices = {}; // { playerId: [{ handIdx, cards: [c1,c2] }] } — pending joker choices
     this.jokersEnabled = true;  // jokers in the deck at all
     this.jokersInHands = true;  // jokers can land in starting hands
+    this.trollVoteEnabled = false; // lobby option: vote for the troll after a loss
+    this.trollId = null;           // current troll — keeps the stink until replaced
+    this.trollVote = null;         // { votes: { voterId: targetId } } — active after a loss
   }
 
   setMode(mode) {
@@ -172,6 +175,11 @@ class Game {
     if (this.state !== 'lobby') return;
     if (typeof enabled === 'boolean') this.jokersEnabled = enabled;
     if (typeof inHands === 'boolean') this.jokersInHands = inHands;
+  }
+
+  setTrollVote(enabled) {
+    if (this.state !== 'lobby') return;
+    if (typeof enabled === 'boolean') this.trollVoteEnabled = enabled;
   }
 
   toggleDefaultMalus(id) {
@@ -245,6 +253,16 @@ class Game {
     if (this.jokerChoices[oldId]) {
       this.jokerChoices[newId] = this.jokerChoices[oldId];
       delete this.jokerChoices[oldId];
+    }
+    if (this.trollId === oldId) this.trollId = newId;
+    if (this.trollVote) {
+      if (this.trollVote.votes[oldId] !== undefined) {
+        this.trollVote.votes[newId] = this.trollVote.votes[oldId];
+        delete this.trollVote.votes[oldId];
+      }
+      for (const k of Object.keys(this.trollVote.votes)) {
+        if (this.trollVote.votes[k] === oldId) this.trollVote.votes[k] = newId;
+      }
     }
   }
 
@@ -629,8 +647,34 @@ class Game {
 
     const allCorrect = this.revealOrder.every(r => r.correct);
     this.state = allCorrect ? 'won' : 'lost';
+    if (this.state === 'lost' && this.trollVoteEnabled) this.trollVote = { votes: {} };
     this.lastEvent = { type: 'reveal', correct: allCorrect };
     return { reveal: true, correct: allCorrect };
+  }
+
+  // ── Vote du Trolleur ─────────────────────────────────────
+
+  submitTrollVote(voterId, targetId) {
+    if (!this.trollVote) return { error: 'Pas de vote trolleur en cours.' };
+    if (!this.players.some(p => p.id === voterId && !p.left)) return { error: 'Joueur invalide.' };
+    if (!this.players.some(p => p.id === targetId && !p.left)) return { error: 'Cible invalide.' };
+    this.trollVote.votes[voterId] = targetId; // overwrite allowed (vote change)
+    this._resolveTrollVoteIfComplete();
+    return { ok: true };
+  }
+
+  _resolveTrollVoteIfComplete() {
+    if (!this.trollVote) return false;
+    const voters = this.players.filter(p => !p.left);
+    if (voters.length === 0 || !voters.every(p => this.trollVote.votes[p.id])) return false;
+    const tally = {};
+    for (const t of Object.values(this.trollVote.votes)) tally[t] = (tally[t] ?? 0) + 1;
+    const max = Math.max(...Object.values(tally));
+    const winners = Object.keys(tally).filter(t => tally[t] === max);
+    this.trollId = winners[Math.floor(Math.random() * winners.length)];
+    this.trollVote = null;
+    this.lastEvent = { type: 'troll-elected', trollId: this.trollId, ts: Date.now() };
+    return true;
   }
 
   // ── Vote (Jugement Final / Analyse de Jeu) ───────────────
@@ -703,6 +747,7 @@ class Game {
     const firstFailed = allResults.find(r => !r.passed);
     const allCorrect = this.revealOrder.every(r => r.correct);
     this.state = (!allChallengesPassed || !allCorrect) ? 'lost' : 'won';
+    if (this.state === 'lost' && this.trollVoteEnabled) this.trollVote = { votes: {} };
     this.lastEvent = {
       type: allChallengesPassed ? 'vote-passed' : 'vote-failed',
       challengeValue: firstFailed ? firstFailed.challengeValue : challengeValue,
@@ -740,6 +785,12 @@ class Game {
         this.state = 'playing';
         this._openPhase();
       }
+    }
+
+    // Drop their troll vote; resolve if everyone else already voted
+    if (this.trollVote) {
+      delete this.trollVote.votes[playerId];
+      this._resolveTrollVoteIfComplete();
     }
 
     this.lastEvent = { type: 'player-left', playerId, name: p.name, ts: Date.now() };
@@ -782,6 +833,7 @@ class Game {
     this.restartVotes = new Set();
     this.lockedZones = {};
     this.voteState = null;
+    this.trollVote = null; // trollId is kept — the stink stays until a new troll is voted
     return { newMalus };
   }
 
@@ -791,6 +843,9 @@ class Game {
     this.excludedMalus = new Set();
     this.jokersEnabled = true;
     this.jokersInHands = true;
+    this.trollVoteEnabled = false;
+    this.trollId = null;
+    this.trollVote = null;
     this.lockedZones = {};
     this.betweenCards = [];
     this.voteState = null;
@@ -835,6 +890,7 @@ class Game {
     this.lastEvent = null;
     this.chat = [];
     this.jokerChoices = {};
+    this.trollVote = null; // trollId is kept across restarts
     this.restartVotes = new Set();
   }
 
@@ -880,6 +936,12 @@ class Game {
       chat: this.chat,
       countdownStartedAt: this.countdownStartedAt,
       restartVotes: [...this.restartVotes],
+      trollId: this.trollId,
+      trollVoteEnabled: this.trollVoteEnabled,
+      trollVote: this.trollVote ? {
+        votes: { ...this.trollVote.votes },
+        myVote: this.trollVote.votes[forPlayerId] ?? null,
+      } : null,
     };
   }
 }

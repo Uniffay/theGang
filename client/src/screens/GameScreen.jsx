@@ -196,6 +196,21 @@ function SwapPopup({ data }) {
   );
 }
 
+// ── Troll elected popup ───────────────────────────────────────────────────────
+function TrollPopup({ name }) {
+  if (!name) return null;
+  return (
+    <div className="malus-popup-overlay">
+      <div className="malus-popup">
+        <p className="malus-popup-label">🧌 NOUVEAU TROLLEUR !</p>
+        <div className="malus-popup-icon">🧌</div>
+        <h2 className="malus-popup-name">{name} a été élu trolleur</h2>
+        <p className="malus-popup-desc">🪰 Il pue jusqu'au prochain vote…</p>
+      </div>
+    </div>
+  );
+}
+
 // ── Malus popup ───────────────────────────────────────────────────────────────
 function MalusPopup({ malus }) {
   if (!malus) return null;
@@ -212,7 +227,7 @@ function MalusPopup({ malus }) {
 }
 
 // ── End overlay ──────────────────────────────────────────────────────────────
-function EndOverlay({ state, revealOrder, community, completedPhases, isHost, creatorName, onHostAction, voteState, players, myId, mode }) {
+function EndOverlay({ state, revealOrder, community, completedPhases, isHost, creatorName, onHostAction, voteState, players, myId, mode, trollVote }) {
   const total = revealOrder?.length ?? 0;
   const [step, setStep] = useState(0);
   const wasVotingRef = useRef(false);
@@ -347,7 +362,28 @@ function EndOverlay({ state, revealOrder, community, completedPhases, isHost, cr
             </div>
           )}
 
-          {allRevealed && (
+          {allRevealed && trollVote && (
+            <div className="restart-vote end-appear">
+              <p className="troll-vote-title">🧌 Qui a trollé cette manche ?</p>
+              <div className="troll-vote-grid">
+                {(players ?? []).filter(p => !p.left).map(p => (
+                  <button key={p.id}
+                    className={`btn ${trollVote.myVote === p.id ? 'btn-primary' : 'btn-secondary'} troll-vote-btn`}
+                    onClick={() => socket.emit('troll-vote', { targetId: p.id })}>
+                    {p.emoji && p.emoji.startsWith('/')
+                      ? <img src={p.emoji} alt="" style={{ width: 22, height: 22, objectFit: 'cover', borderRadius: 4, verticalAlign: 'middle', marginRight: 4 }} />
+                      : p.emoji ? `${p.emoji} ` : ''}
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+              <p className="vote-progress">
+                {Object.keys(trollVote.votes ?? {}).length} / {(players ?? []).filter(p => !p.left).length} votes
+              </p>
+            </div>
+          )}
+
+          {allRevealed && !trollVote && (
             <div className="restart-vote end-appear">
               {isHost ? (
                 <div className="host-actions">
@@ -435,6 +471,7 @@ export default function GameScreen({ gameState, playerName, onPlaceToken, onRele
   const [communityDelays, setCommunityDelays] = useState({});
   const [swapPopup, setSwapPopup] = useState(null);
   const [voteResultEv, setVoteResultEv] = useState(null);
+  const [trollPopup, setTrollPopup] = useState(null);
   const prevCommunityLenRef = useRef(0);
   const [handOrder, setHandOrder] = useState([]);
   const [handDragVisual, setHandDragVisual] = useState(null); // { srcIdx, overIdx, x, y }
@@ -443,7 +480,7 @@ export default function GameScreen({ gameState, playerName, onPlaceToken, onRele
 
   const { table: tableTheme } = useTheme();
 
-  const { state, phase, phaseIndex, color, players, myHand, handSizes, community, betweenCards, playerZones, completedPhases, revealOrder, voteState, n, countdownStartedAt, mode, activeMalus, lockedZones, creatorId, jokerChoices: myJokerChoices, jokerWaiting } = gameState ?? {};
+  const { state, phase, phaseIndex, color, players, myHand, handSizes, community, betweenCards, playerZones, completedPhases, revealOrder, voteState, n, countdownStartedAt, mode, activeMalus, lockedZones, creatorId, jokerChoices: myJokerChoices, jokerWaiting, trollId, trollVote } = gameState ?? {};
   const holeCount = ((mode === 'omaha' || mode === 'banana-omaha') ? 4 : 2) + ((activeMalus ?? []).some(m => m.id === 'camera-surveillance') ? 1 : 0);
   const notRiver = color !== 'red';
   const hasJetonNoir     = notRiver && (activeMalus ?? []).some(m => m.id === 'jeton-noir');
@@ -520,6 +557,19 @@ export default function GameScreen({ gameState, playerName, onPlaceToken, onRele
       setVoteResultEv(ev);
       const t = setTimeout(() => setVoteResultEv(null), 4500);
       return () => clearTimeout(t);
+    }
+  }, [gameState?.lastEvent?.ts]);
+
+  // Show popup when a troll is elected
+  useEffect(() => {
+    const ev = gameState?.lastEvent;
+    if (ev?.type === 'troll-elected') {
+      const name = (gameState?.players ?? []).find(p => p.id === ev.trollId)?.name;
+      if (name) {
+        setTrollPopup(name);
+        const t = setTimeout(() => setTrollPopup(null), 4500);
+        return () => clearTimeout(t);
+      }
     }
   }, [gameState?.lastEvent?.ts]);
 
@@ -779,7 +829,16 @@ export default function GameScreen({ gameState, playerName, onPlaceToken, onRele
 
           const labelEl = (
             <div className={`hand-label ${isMe ? 'hand-label-me' : ''}`}>
-              {(p.emoji || avatarEmojis[i]).startsWith('/')
+              {p.id === trollId ? (
+                <span className="label-avatar troll-stink">
+                  🧌
+                  <span className="troll-fly f1">🪰</span>
+                  <span className="troll-fly f2">🪰</span>
+                  <span className="troll-fume m1" />
+                  <span className="troll-fume m2" />
+                  <span className="troll-fume m3" />
+                </span>
+              ) : (p.emoji || avatarEmojis[i]).startsWith('/')
                 ? <img src={p.emoji} alt="" className="label-avatar-img" />
                 : <span className="label-avatar">{p.emoji || avatarEmojis[i]}</span>}
               {p.name}{isMe && <span className="label-you"> (toi)</span>}
@@ -925,12 +984,14 @@ export default function GameScreen({ gameState, playerName, onPlaceToken, onRele
           players={ordered}
           myId={myId}
           mode={mode}
+          trollVote={trollVote}
         />
       )}
 
       <VoteResultPopup ev={voteResultEv} />
       <SwapPopup data={swapPopup} />
       <MalusPopup malus={drawnMalus} />
+      <TrollPopup name={trollPopup} />
 
       {state === 'joker-choice' && (
         <div className="joker-overlay">

@@ -35,6 +35,8 @@ function broadcastRoom(roomId) {
     excludedMalus: [...room.excludedMalus],
     jokersEnabled: room.jokersEnabled,
     jokersInHands: room.jokersInHands,
+    trollVoteEnabled: room.trollVoteEnabled,
+    trollId: room.trollId,
   });
 }
 
@@ -128,6 +130,22 @@ io.on('connection', (socket) => {
     if (room.players[0]?.id !== socket.id) return; // host only
     room.setJokerConfig({ enabled, inHands });
     broadcastRoom(currentRoom);
+  });
+
+  socket.on('set-troll-vote', ({ enabled }) => {
+    if (!currentRoom) return;
+    const room = getOrCreateRoom(currentRoom);
+    if (room.players[0]?.id !== socket.id) return; // host only
+    room.setTrollVote(enabled);
+    broadcastRoom(currentRoom);
+  });
+
+  socket.on('troll-vote', ({ targetId }) => {
+    if (!currentRoom) return;
+    const room = getOrCreateRoom(currentRoom);
+    const result = room.submitTrollVote(socket.id, targetId);
+    if (result?.error) { socket.emit('error', result); return; }
+    broadcastAll(currentRoom);
   });
 
   socket.on('set-ready', ({ ready }) => {

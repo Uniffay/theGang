@@ -18,7 +18,7 @@ const MALUS_LIST = [
   { id: 'analyse-jeu',   icon: '🕵️', name: 'Analyse de Jeu', description: "Avant la révélation du dernier joueur, le gang vote sur sa combinaison de main. Si la majorité se trompe, c'est perdu." },
 ];
 
-export default function Lobby({ roomId, roomData, playerName, onReady, onQuit, onSetMode, onToggleMalus, onToggleExcluded, onSetJokerConfig, onKick, error }) {
+export default function Lobby({ roomId, roomData, playerName, onReady, onQuit, onSetMode, onToggleMalus, onToggleExcluded, onSetJokerConfig, onSetTrollVote, onKick, error }) {
   const [ready, setReady] = useState(false);
   const [hoveredMalus, setHoveredMalus] = useState(null);
 
@@ -34,6 +34,8 @@ export default function Lobby({ roomId, roomData, playerName, onReady, onQuit, o
   const excludedMalus  = roomData?.excludedMalus ?? [];
   const jokersEnabled  = roomData?.jokersEnabled ?? true;
   const jokersInHands  = roomData?.jokersInHands ?? true;
+  const trollVoteOn    = roomData?.trollVoteEnabled ?? false;
+  const trollId        = roomData?.trollId ?? null;
   const isHost         = playerName === roomData?.creatorName;
 
   return (
@@ -90,6 +92,14 @@ export default function Lobby({ roomId, roomData, playerName, onReady, onQuit, o
             >
               <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>✋ En main : {jokersInHands ? 'oui' : 'non'}</span>
               <span style={{ fontWeight: 400, fontSize: '0.68rem', opacity: 0.75 }}>{jokersInHands ? 'Peuvent tomber en main de départ' : 'Uniquement sur le terrain'}</span>
+            </button>
+            <button
+              className={`btn ${trollVoteOn ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '10px 12px', opacity: isHost ? 1 : 0.5, cursor: isHost ? 'pointer' : 'default', gridColumn: '1 / -1' }}
+              onClick={() => isHost && onSetTrollVote(!trollVoteOn)}
+            >
+              <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>🧌 Vote du Trolleur : {trollVoteOn ? 'activé' : 'désactivé'}</span>
+              <span style={{ fontWeight: 400, fontSize: '0.68rem', opacity: 0.75 }}>Après une défaite, le gang vote qui a trollé — l'élu pue jusqu'au prochain vote</span>
             </button>
           </div>
         </div>
@@ -162,7 +172,16 @@ export default function Lobby({ roomId, roomData, playerName, onReady, onQuit, o
               borderRadius: 8, padding: '10px 14px',
             }}>
               <span style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
-                {(p.emoji ?? '').startsWith('/')
+                {p.id === trollId ? (
+                  <span className="troll-stink" style={{ fontSize: '2.2rem', lineHeight: 1 }}>
+                    🧌
+                    <span className="troll-fly f1">🪰</span>
+                    <span className="troll-fly f2">🪰</span>
+                    <span className="troll-fume m1" />
+                    <span className="troll-fume m2" />
+                    <span className="troll-fume m3" />
+                  </span>
+                ) : (p.emoji ?? '').startsWith('/')
                   ? <img src={p.emoji} alt="" style={{ width: 52, height: 52, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }} />
                   : <span style={{ fontSize: '2.2rem', lineHeight: 1 }}>{p.emoji ?? '🐱'}</span>}
                 {p.name} {p.name === playerName && <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(toi)</span>}
