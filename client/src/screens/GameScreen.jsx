@@ -175,8 +175,8 @@ function VoteResultPopup({ ev }) {
 
 // ── Card swap popup ───────────────────────────────────────────────────────────
 const SWAP_REASON_TEXT = {
-  'tete': 'Il avait une tête (K, Q, J) en main avec le jeton 1',
-  'sans-tete': "Il n'avait aucune tête en main avec le jeton le plus élevé",
+  'tete': 'Une tête (K, Q, J) est apparue sur son flop avec le jeton 1',
+  'sans-tete': 'Aucune tête sur son flop avec le jeton le plus élevé',
 };
 function SwapPopup({ data }) {
   if (!data?.length) return null;

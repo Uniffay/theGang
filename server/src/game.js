@@ -386,6 +386,20 @@ class Game {
     if (this.phase === 'flop') this._applyFlopSwap();
   }
 
+  // Le "flop" d'un joueur : les 3 premières cartes communes en normal ;
+  // en banana, la 1re carte révélée de sa pile de gauche + la 1re de sa pile de droite
+  _playerFlop(playerId) {
+    if (this.mode === 'banana' || this.mode === 'banana-omaha') {
+      const idx = this.players.findIndex(p => p.id === playerId);
+      if (idx < 0) return [];
+      const N = this.players.length;
+      const left  = this.betweenCards[(idx - 1 + N) % N] ?? [];
+      const right = this.betweenCards[idx] ?? [];
+      return [left[0], right[0]].filter(Boolean);
+    }
+    return this.community.slice(0, 3);
+  }
+
   _applyFlopSwap() {
     const prevPhase = this.completedPhases.find(cp => cp.phase === 'preflop');
     if (!prevPhase) return;
@@ -393,33 +407,30 @@ class Game {
     const zones = prevPhase.zones;
     const holeCount = ((this.mode === 'omaha' || this.mode === 'banana-omaha') ? 4 : 2)
       + (this.hasMalus('camera-surveillance') ? 1 : 0);
+    const FACES = ['K', 'Q', 'J'];
+    // Un slot joker compte comme tête si l'une de ses 2 cartes est une tête
+    const hasFace = cards => cards.some(c => c && (c.isJokerSlot
+      ? (c.cards ?? []).some(cc => FACES.includes(cc.value))
+      : FACES.includes(c.value)));
     const swaps = [];
 
-    // Échange de Tête : le joueur au jeton 1 a une tête en main → il change de cartes
+    // Échange de Tête : une tête sur le flop du joueur au jeton 1 → il change de cartes
     if (this.hasMalus('echange-tete')) {
-      for (const [pid, tok] of Object.entries(zones)) {
-        if (tok === 1) {
-          const hand = this.hands[pid] ?? [];
-          if (hand.some(c => c && ['K', 'Q', 'J'].includes(c.value))) {
-            swaps.push({ targetId: pid, reason: 'tete' });
-          }
-          break;
-        }
+      const pid = Object.keys(zones).find(id => zones[id] === 1);
+      if (pid && hasFace(this._playerFlop(pid))) {
+        swaps.push({ targetId: pid, reason: 'tete' });
       }
     }
 
-    // Échange Sans Tête : le joueur au jeton max n'a aucune tête en main → il change de cartes
-    // Les deux malus peuvent se déclencher dans la même manche (joueurs différents)
+    // Échange Sans Tête : aucune tête sur le flop du joueur au jeton max → il change de cartes
+    // En banana les flops sont personnels, les deux malus peuvent tomber le même tour
     if (this.hasMalus('echange-sans-tete')) {
       let maxTok = 0, maxId = null;
       for (const [pid, tok] of Object.entries(zones)) {
         if (tok > maxTok) { maxTok = tok; maxId = pid; }
       }
-      if (maxId && !swaps.some(s => s.targetId === maxId)) {
-        const hand = this.hands[maxId] ?? [];
-        if (!hand.some(c => c && ['K', 'Q', 'J'].includes(c.value))) {
-          swaps.push({ targetId: maxId, reason: 'sans-tete' });
-        }
+      if (maxId && !swaps.some(s => s.targetId === maxId) && !hasFace(this._playerFlop(maxId))) {
+        swaps.push({ targetId: maxId, reason: 'sans-tete' });
       }
     }
 
