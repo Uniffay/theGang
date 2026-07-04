@@ -174,18 +174,23 @@ function VoteResultPopup({ ev }) {
 }
 
 // ── Card swap popup ───────────────────────────────────────────────────────────
+const SWAP_REASON_TEXT = {
+  'tete': 'Il avait une tête (K, Q, J) en main avec le jeton 1',
+  'sans-tete': "Il n'avait aucune tête en main avec le jeton le plus élevé",
+};
 function SwapPopup({ data }) {
-  if (!data) return null;
-  const reasonText = data.reason === 'tete'
-    ? 'Une tête est apparue au flop'
-    : 'Aucune tête au flop';
+  if (!data?.length) return null;
   return (
     <div className="malus-popup-overlay">
       <div className="malus-popup">
         <p className="malus-popup-label">🃏 CHANGEMENT DE CARTES !</p>
         <div className="malus-popup-icon">🃏</div>
-        <h2 className="malus-popup-name">{data.name} a changé de cartes</h2>
-        <p className="malus-popup-desc">{reasonText}</p>
+        {data.map((s, i) => (
+          <div key={i}>
+            <h2 className="malus-popup-name">{s.name} a changé de cartes</h2>
+            <p className="malus-popup-desc">{SWAP_REASON_TEXT[s.reason] ?? ''}</p>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -496,9 +501,12 @@ export default function GameScreen({ gameState, playerName, onPlaceToken, onRele
   useEffect(() => {
     const ev = gameState?.lastEvent;
     if (ev?.type === 'cards-redrawn') {
-      const target = (gameState?.players ?? []).find(p => p.id === ev.targetId);
-      if (target) {
-        setSwapPopup({ name: target.name, reason: ev.reason });
+      const swaps = ev.swaps ?? [{ targetId: ev.targetId, reason: ev.reason }];
+      const items = swaps
+        .map(s => ({ name: (gameState?.players ?? []).find(p => p.id === s.targetId)?.name, reason: s.reason }))
+        .filter(s => s.name);
+      if (items.length > 0) {
+        setSwapPopup(items);
         const t = setTimeout(() => setSwapPopup(null), 4500);
         return () => clearTimeout(t);
       }

@@ -387,52 +387,57 @@ class Game {
   }
 
   _applyFlopSwap() {
-    if (this.mode === 'banana' || this.mode === 'banana-omaha') return;
     const prevPhase = this.completedPhases.find(cp => cp.phase === 'preflop');
     if (!prevPhase) return;
 
     const zones = prevPhase.zones;
-    const holeCount = (this.mode === 'omaha' ? 4 : 2) + (this.hasMalus('camera-surveillance') ? 1 : 0);
-    let targetId = null;
-    let reason = null;
+    const holeCount = ((this.mode === 'omaha' || this.mode === 'banana-omaha') ? 4 : 2)
+      + (this.hasMalus('camera-surveillance') ? 1 : 0);
+    const swaps = [];
 
+    // Échange de Tête : le joueur au jeton 1 a une tête en main → il change de cartes
     if (this.hasMalus('echange-tete')) {
       for (const [pid, tok] of Object.entries(zones)) {
         if (tok === 1) {
           const hand = this.hands[pid] ?? [];
-          if (hand.some(c => ['K', 'Q', 'J'].includes(c.value))) {
-            targetId = pid;
-            reason = 'tete';
+          if (hand.some(c => c && ['K', 'Q', 'J'].includes(c.value))) {
+            swaps.push({ targetId: pid, reason: 'tete' });
           }
           break;
         }
       }
     }
 
-    if (!targetId && this.hasMalus('echange-sans-tete')) {
+    // Échange Sans Tête : le joueur au jeton max n'a aucune tête en main → il change de cartes
+    // Les deux malus peuvent se déclencher dans la même manche (joueurs différents)
+    if (this.hasMalus('echange-sans-tete')) {
       let maxTok = 0, maxId = null;
       for (const [pid, tok] of Object.entries(zones)) {
         if (tok > maxTok) { maxTok = tok; maxId = pid; }
       }
-      if (maxId) {
+      if (maxId && !swaps.some(s => s.targetId === maxId)) {
         const hand = this.hands[maxId] ?? [];
-        if (!hand.some(c => ['K', 'Q', 'J'].includes(c.value))) {
-          targetId = maxId;
-          reason = 'sans-tete';
+        if (!hand.some(c => c && ['K', 'Q', 'J'].includes(c.value))) {
+          swaps.push({ targetId: maxId, reason: 'sans-tete' });
         }
       }
     }
 
-    if (!targetId) return;
+    const applied = [];
+    for (const s of swaps) {
+      const newHand = drawNonJoker(this.deck, holeCount);
+      if (newHand.length < holeCount) break; // deck exhausted, keep old hand
+      this.hands[s.targetId] = newHand;
+      applied.push(s);
+    }
+    if (applied.length === 0) return;
 
-    const newHand = drawNonJoker(this.deck, holeCount);
-    if (newHand.length < holeCount) return; // deck exhausted, keep old hand
-    this.hands[targetId] = newHand;
     this.lastEvent = {
       type: 'cards-redrawn',
       phase: 'flop',
-      reason,
-      targetId,
+      reason: applied[0].reason,
+      targetId: applied[0].targetId,
+      swaps: applied,
       ts: Date.now(),
     };
   }
