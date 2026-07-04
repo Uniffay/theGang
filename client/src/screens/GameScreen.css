@@ -723,15 +723,18 @@
   border-color: var(--accent); transform: scale(1.06);
 }
 
-/* ── Community joker slot ──────────────────────────────────────────────────── */
+/* ── Community joker slot — 2 cards stacked vertically, overlapping ───────── */
 .joker-comm-slot {
   position: relative;
-  display: flex; gap: 4px;
+  display: flex; flex-direction: column; align-items: center; gap: 0;
   padding: 4px;
   border: 2px solid var(--accent);
   border-radius: 8px;
   background: rgba(232,200,58,0.06);
 }
+.joker-comm-slot > .poker-card { position: relative; }
+.joker-comm-slot > .poker-card + .poker-card { margin-top: -78px; z-index: 1; }
+.joker-comm-slot-small > .poker-card + .poker-card { margin-top: -40px; }
 .joker-comm-badge {
   position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
   background: var(--accent); color: #000;

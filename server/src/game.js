@@ -59,11 +59,13 @@ const BANANA_PHASE_COUNT = { preflop: 0, flop: 1, turn: 2, river: 3 };
 const SUITS = ['♠', '♥', '♦', '♣'];
 const VALUES = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
 
-function createDeck() {
+function createDeck(withJokers = true) {
   const d = [];
   for (const suit of SUITS) for (const value of VALUES) d.push({ value, suit });
-  d.push({ value: 'Jo', suit: '★', isJoker: true });
-  d.push({ value: 'Jo', suit: '★', isJoker: true });
+  if (withJokers) {
+    d.push({ value: 'Jo', suit: '★', isJoker: true });
+    d.push({ value: 'Jo', suit: '★', isJoker: true });
+  }
   return d;
 }
 
@@ -157,11 +159,19 @@ class Game {
     this.betweenCards = []; // banana split: card between players[i] and players[(i+1)%N]
     this.voteState = null; // { targetId, votes: { playerId: value } }
     this.jokerChoices = {}; // { playerId: [{ handIdx, cards: [c1,c2] }] } — pending joker choices
+    this.jokersEnabled = true;  // jokers in the deck at all
+    this.jokersInHands = true;  // jokers can land in starting hands
   }
 
   setMode(mode) {
     if (this.state !== 'lobby') return;
     if (['texas','omaha','banana','banana-omaha'].includes(mode)) this.mode = mode;
+  }
+
+  setJokerConfig({ enabled, inHands }) {
+    if (this.state !== 'lobby') return;
+    if (typeof enabled === 'boolean') this.jokersEnabled = enabled;
+    if (typeof inHands === 'boolean') this.jokersInHands = inHands;
   }
 
   toggleDefaultMalus(id) {
@@ -268,7 +278,7 @@ class Game {
     this.lastEvent = null;
     if (fromLobby) this.activeMalus = [...this.defaultMalus];
 
-    const deck = shuffle(createDeck());
+    const deck = shuffle(createDeck(this.jokersEnabled));
     this.hands = {};
     const baseHoleCount = (this.mode === 'omaha' || this.mode === 'banana-omaha') ? 4 : 2;
     const holeCount = baseHoleCount + (this.hasMalus('camera-surveillance') ? 1 : 0);
@@ -299,6 +309,21 @@ class Game {
     this.deck = deck.slice(offset);
 
     // ── Joker handling ──────────────────────────────────────────────
+    // Jokers forbidden in starting hands → swap them with random non-jokers from the deck
+    if (this.jokersEnabled && !this.jokersInHands) {
+      for (const p of this.players.filter(pl => !pl.left)) {
+        const hand = this.hands[p.id];
+        if (!hand) continue;
+        for (let i = 0; i < hand.length; i++) {
+          if (!hand[i]?.isJoker) continue;
+          const candidates = this.deck.map((c, di) => ({ c, di })).filter(x => !x.c.isJoker);
+          if (candidates.length === 0) break;
+          const pick = candidates[Math.floor(Math.random() * candidates.length)];
+          this.deck[pick.di] = hand[i]; // joker goes back into the deck
+          hand[i] = pick.c;
+        }
+      }
+    }
     // Community jokers → replace with a slot of 2 cards (auto, no player choice)
     this.community = this.community.map(c => {
       if (!c?.isJoker) return c;
@@ -748,6 +773,8 @@ class Game {
     this.activeMalus = [];
     this.defaultMalus = [];
     this.excludedMalus = new Set();
+    this.jokersEnabled = true;
+    this.jokersInHands = true;
     this.lockedZones = {};
     this.betweenCards = [];
     this.voteState = null;

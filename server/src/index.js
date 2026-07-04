@@ -33,6 +33,8 @@ function broadcastRoom(roomId) {
     creatorName: room.players[0]?.name,
     defaultMalus: room.defaultMalus,
     excludedMalus: [...room.excludedMalus],
+    jokersEnabled: room.jokersEnabled,
+    jokersInHands: room.jokersInHands,
   });
 }
 
@@ -117,6 +119,14 @@ io.on('connection', (socket) => {
     const room = getOrCreateRoom(currentRoom);
     if (room.players[0]?.id !== socket.id) return; // host only
     room.setMode(mode);
+    broadcastRoom(currentRoom);
+  });
+
+  socket.on('set-joker-config', ({ enabled, inHands }) => {
+    if (!currentRoom) return;
+    const room = getOrCreateRoom(currentRoom);
+    if (room.players[0]?.id !== socket.id) return; // host only
+    room.setJokerConfig({ enabled, inHands });
     broadcastRoom(currentRoom);
   });
 

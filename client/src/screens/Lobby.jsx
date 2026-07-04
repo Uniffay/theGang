@@ -18,7 +18,7 @@ const MALUS_LIST = [
   { id: 'analyse-jeu',   icon: '🕵️', name: 'Analyse de Jeu', description: "Avant la révélation du dernier joueur, le gang vote sur sa combinaison de main. Si la majorité se trompe, c'est perdu." },
 ];
 
-export default function Lobby({ roomId, roomData, playerName, onReady, onQuit, onSetMode, onToggleMalus, onToggleExcluded, onKick, error }) {
+export default function Lobby({ roomId, roomData, playerName, onReady, onQuit, onSetMode, onToggleMalus, onToggleExcluded, onSetJokerConfig, onKick, error }) {
   const [ready, setReady] = useState(false);
   const [hoveredMalus, setHoveredMalus] = useState(null);
 
@@ -32,6 +32,8 @@ export default function Lobby({ roomId, roomData, playerName, onReady, onQuit, o
   const mode           = roomData?.mode ?? 'texas';
   const defaultMalus   = roomData?.defaultMalus ?? [];
   const excludedMalus  = roomData?.excludedMalus ?? [];
+  const jokersEnabled  = roomData?.jokersEnabled ?? true;
+  const jokersInHands  = roomData?.jokersInHands ?? true;
   const isHost         = playerName === roomData?.creatorName;
 
   return (
@@ -64,6 +66,31 @@ export default function Lobby({ roomId, roomData, playerName, onReady, onQuit, o
                 <span style={{ fontWeight: 400, fontSize: '0.68rem', opacity: 0.75 }}>{desc}</span>
               </button>
             ))}
+          </div>
+        </div>
+
+        {/* Jokers */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <p style={{ fontSize: '0.8rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+            Jokers {!isHost && <span style={{ textTransform: 'none', fontWeight: 400 }}>(chef seulement)</span>}
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+            <button
+              className={`btn ${jokersEnabled ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '10px 12px', opacity: isHost ? 1 : 0.5, cursor: isHost ? 'pointer' : 'default' }}
+              onClick={() => isHost && onSetJokerConfig({ enabled: !jokersEnabled })}
+            >
+              <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>🃏 Jokers {jokersEnabled ? 'activés' : 'désactivés'}</span>
+              <span style={{ fontWeight: 400, fontSize: '0.68rem', opacity: 0.75 }}>2 jokers dans le deck</span>
+            </button>
+            <button
+              className={`btn ${jokersEnabled && jokersInHands ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '10px 12px', opacity: (isHost && jokersEnabled) ? 1 : 0.4, cursor: (isHost && jokersEnabled) ? 'pointer' : 'default' }}
+              onClick={() => isHost && jokersEnabled && onSetJokerConfig({ inHands: !jokersInHands })}
+            >
+              <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>✋ En main : {jokersInHands ? 'oui' : 'non'}</span>
+              <span style={{ fontWeight: 400, fontSize: '0.68rem', opacity: 0.75 }}>{jokersInHands ? 'Peuvent tomber en main de départ' : 'Uniquement sur le terrain'}</span>
+            </button>
           </div>
         </div>
 
